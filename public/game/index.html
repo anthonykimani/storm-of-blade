@@ -2424,12 +2424,24 @@ function startBonus() {
   });
   clearGroup(enemyGroup);
   enemyGroup.rotation.set(0, 0, 0);
+  // Remove the defeated boss's collision body from the vault.
+  enemyBody.position.set(0, -100, 0);
+  enemyBody.velocity.set(0, 0, 0);
+  enemyBody.collisionResponse = false;
+  if (enemySwordBody) {
+    enemySwordBody.position.set(0, -100, 0);
+    enemySwordBody.velocity?.set?.(0, 0, 0);
+  }
   spawnBonusOrbs();
   playerBody.position.set(0, 1.2, 6);
   playerBody.velocity.set(0, 0, 0);
   controls.getObject().position.set(0, 1.7, 6);
+  playerStamina = playerMaxStamina;
   playerSwing.active = false;
   playerGuard = false;
+  dodgeCooldown = 0;
+  sway.x = 0;
+  sway.y = 0;
   setMessage('BONUS VAULT! Slash the golden orbs before time runs out — collect all 8 for +1 life.', 4.5);
 }
 
@@ -3560,6 +3572,12 @@ if (Number.isFinite(qGold) && qGold > 0) {
   saveShop();
 }
 if (qs.has('shop')) openShop();
+
+// Debug: jump straight into the bonus vault.
+if (qs.has('testbonus')) {
+  enemy.alive = false;
+  startBonus();
+}
 
 // Debug: exercise all six boss attacks without needing to play.
 if (qs.has('testattacks')) {
