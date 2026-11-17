@@ -163,6 +163,7 @@
       <div class="muted">First-person sword duels with physics-based clashes - 900 bosses across 5 arenas (Three.js + cannon-es)</div>
       <ul>
         <li><b>Levels:</b> earn XP from victories; level up for more HP, stamina and damage — bosses scale to your level.</li>
+        <li><b>Bosses:</b> six attack patterns — overhead cut, sweeping slash, lunging thrust, shield bash (guard break), spinning slash and double cut.</li>
         <li><b>Blade Shop:</b> press <b>H</b> or use the <b>Blade Shop</b> button — earn gold from bosses and golden orbs, then buy faster or harder-hitting swords.</li>
         <li><b>Desktop:</b> Click <b>Enter Arena</b>, then <b>move the mouse to look</b> (no dragging needed), <b>click</b> to slash, <b>hold right-click</b> to guard, <b>Space</b> dodge, <b>F</b> lock-on (boss or nearest training dummy), <b>V</b> or the <b>3rd Person</b> button to switch view, <b>R</b> restart, <b>N</b> next boss. Arrow keys also look; <b>-</b>/<b>=</b> change sensitivity.</li>
         <li><b>Lives:</b> you start with <b>3 hearts</b>. Falling costs one life and restarts the duel; win to recover a heart (max 3). <b>R</b> restarts the current boss and refills lives.</li>
@@ -1729,7 +1730,7 @@ Object.assign(bosses[bosses.length - 1], {
 });
 let bossIndex = 0;
 
-const enemy = { name: bosses[0].name, hp: bosses[0].maxHp, maxHp: bosses[0].maxHp, alive: true, attackTimer: 0, swingT: 0, swinging: false, guard: false, stagger: 0, didHit: false, speed: 1, aggression: 1, damage: 1, title: bosses[0].title, scale: 1, deathT: 999, walkPhase: 0 };
+const enemy = { name: bosses[0].name, hp: bosses[0].maxHp, maxHp: bosses[0].maxHp, alive: true, attackTimer: 0, swingT: 0, swinging: false, guard: false, stagger: 0, didHit: false, speed: 1, aggression: 1, damage: 1, title: bosses[0].title, scale: 1, deathT: 999, walkPhase: 0, attackType: null, attackTime: 0, attackBaseYaw: 0, hitMarks: [false, false] };
 const enemyGroup = new THREE.Group();
 scene.add(enemyGroup);
 
@@ -2091,6 +2092,10 @@ function loadBoss(index, announce = true) {
   enemy.alive = true;
   enemy.attackTimer = 1.0;
   enemy.swingT = 0;
+  enemy.attackType = null;
+  enemy.attackTime = 0;
+  enemy.attackBaseYaw = 0;
+  enemy.hitMarks = [false, false];
   enemy.swinging = false;
   enemy.guard = false;
   enemy.stagger = 0;
@@ -2267,6 +2272,8 @@ function respawnAfterDeath() {
   enemy.hp = enemy.maxHp;
   enemy.swinging = false;
   enemy.attackTimer = 1.2;
+  enemy.attackTime = 0;
+  enemy.hitMarks = [false, false];
   enemy.stagger = 0;
   enemy.didHit = false;
   invulnTimer = 2.0;
@@ -2678,6 +2685,79 @@ function updatePlayerSword(dt) {
   playerSwordBody.quaternion.set(worldQuat.x, worldQuat.y, worldQuat.z, worldQuat.w);
 }
 
+// Six boss attack patterns — each can defeat the player.
+const ENEMY_ATTACKS = {
+  overhead: { duration: 0.95, strikes: [0.58], range: 2.55, dmg: 1.05, name: 'Overhead Cut' },
+  sweep:    { duration: 0.85, strikes: [0.46], range: 2.75, dmg: 0.95, name: 'Sweeping Slash' },
+  thrust:   { duration: 0.90, strikes: [0.55], range: 3.15, dmg: 1.00, name: 'Lunging Thrust' },
+  bash:     { duration: 0.80, strikes: [0.34], range: 1.95, dmg: 0.50, name: 'Shield Bash', stamina: 28 },
+  spin:     { duration: 1.05, strikes: [0.55], range: 2.90, dmg: 0.85, name: 'Spinning Slash', allAround: true },
+  double:   { duration: 1.10, strikes: [0.38, 0.72], range: 2.45, dmg: 0.72, name: 'Double Cut' }
+};
+
+function pickEnemyAttack(dist, sc) {
+  const byStyle = {
+    knight: ['overhead', 'sweep', 'thrust', 'bash', 'double'],
+    juggernaut: ['overhead', 'bash', 'sweep', 'spin'],
+    duelist: ['thrust', 'double', 'sweep', 'bash'],
+    breaker: ['overhead', 'sweep', 'spin', 'bash'],
+    assassin: ['double', 'thrust', 'spin', 'sweep']
+  };
+  const style = bosses[bossIndex] ? bosses[bossIndex].style : 'knight';
+  let pool = (byStyle[style] || byStyle.knight).slice();
+  pool = pool.filter((t) => {
+    if (t === 'bash') return dist < 2.3 * sc;
+    if (t === 'thrust') return dist < 3.4 * sc;
+    return dist < 3.0 * sc;
+  });
+  if (!pool.length) pool = dist < 2.8 * sc ? ['sweep'] : ['thrust'];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function animateEnemyAttack(p, sc) {
+  const type = enemy.attackType;
+  const parts = enemyGroup.userData.parts;
+  if (type === 'overhead') {
+    const wind = Math.min(1, p / 0.42);
+    const chop = p <= 0.42 ? 0 : Math.min(1, (p - 0.42) / 0.3);
+    enemySword.position.set(0.3 * sc, (1.35 + 0.55 * wind - 1.05 * chop) * sc, (-0.15 + 0.15 * wind - 0.35 * chop) * sc);
+    enemySword.rotation.set(-0.4 - 1.5 * wind + 2.1 * chop, 0.35, 0.15);
+    if (parts) parts.armR.rotation.x = -0.5 - 1.6 * wind + 2.0 * chop;
+  } else if (type === 'sweep') {
+    const wind = Math.min(1, p / 0.3);
+    const swing = p <= 0.3 ? 0 : Math.min(1, (p - 0.3) / 0.35);
+    enemySword.position.set((0.25 + 0.5 * swing) * sc, 1.25 * sc, (-0.1 - 0.25 * swing) * sc);
+    enemySword.rotation.set(-0.2, 0.4 + 1.2 * wind - 2.4 * swing, 0.25 + 0.3 * swing);
+    if (parts) parts.torso.rotation.y = -0.5 * wind + 1.0 * swing;
+  } else if (type === 'thrust') {
+    const back = Math.min(1, p / 0.4);
+    const out = p <= 0.4 ? 0 : Math.min(1, (p - 0.4) / 0.22);
+    enemySword.position.set(0.28 * sc, 1.32 * sc, (-0.25 + 0.35 * back - 1.25 * out) * sc);
+    enemySword.rotation.set(-0.05, 0.05, 0.05);
+    if (parts) parts.armR.rotation.x = -0.5 - 0.5 * back + 1.1 * out;
+  } else if (type === 'bash') {
+    const s = Math.sin(Math.min(1, p / 0.55) * Math.PI);
+    enemySword.position.set(0.35 * sc, 1.2 * sc, -0.3 * sc);
+    enemySword.rotation.set(-0.4, 0.4, 0.2);
+    if (parts) {
+      parts.armL.rotation.x = -1.5 * s;
+      parts.armL.rotation.z = 0.25 + 0.35 * s;
+      parts.torso.rotation.y = -0.35 * s;
+    }
+  } else if (type === 'spin') {
+    const spin = Math.min(1, p / 0.62);
+    enemyGroup.rotation.y = (enemy.attackBaseYaw || enemyGroup.rotation.y) + spin * Math.PI * 2;
+    enemySword.position.set(0.5 * sc, 1.2 * sc, -0.55 * sc);
+    enemySword.rotation.set(-0.1, 0.2, 1.2);
+    if (parts) parts.armR.rotation.z = -0.2 - 1.2 * Math.sin(p * Math.PI);
+  } else if (type === 'double') {
+    const a = Math.sin(Math.min(1, p / 0.5) * Math.PI);
+    const b = p > 0.5 ? Math.sin(Math.min(1, (p - 0.5) / 0.5) * Math.PI) : 0;
+    enemySword.position.set((0.35 - 0.4 * a + 0.35 * b) * sc, (1.3 + 0.1 * a - 0.1 * b) * sc, (-0.2 - 0.3 * a - 0.2 * b) * sc);
+    enemySword.rotation.set(-0.3 - 0.7 * a + 0.9 * b, 0.3 + 1.1 * a - 1.3 * b, 0.1 + 0.5 * a - 0.5 * b);
+  }
+}
+
 function animateEnemyBody(dt) {
   const parts = enemyGroup.userData.parts;
   if (!parts) return;
@@ -2692,22 +2772,26 @@ function animateEnemyBody(dt) {
   parts.legL.rotation.x = b.legLRot.x + legSwing;
   parts.legR.rotation.x = b.legRRot.x - legSwing;
 
-  // Attack swing progress
-  const atk = enemy.swinging ? Math.min(1, enemy.swingT) : 0;
+  // Attack progress (limb poses during attacks are driven by animateEnemyAttack)
+  const attacking = !!enemy.swinging;
+  const atkCfg = attacking ? (ENEMY_ATTACKS[enemy.attackType] || null) : null;
+  const atk = attacking ? Math.min(1, enemy.attackTime / ((atkCfg && atkCfg.duration) || 1)) : 0;
   const atkArc = Math.sin(atk * Math.PI);
 
-  // Arms: walk swing + guard + attack
-  const guardRaise = enemy.guard && !enemy.swinging ? 1 : 0;
-  parts.armL.rotation.x = b.armLRot.x + Math.sin(enemy.walkPhase) * 0.3 * moveAmt - guardRaise * 0.9;
-  parts.armL.rotation.z = b.armLRot.z + guardRaise * 0.25;
-  parts.armR.rotation.x = b.armRRot.x - Math.sin(enemy.walkPhase) * 0.3 * moveAmt - atkArc * 1.7;
-  parts.armR.rotation.z = b.armRRot.z + atkArc * 0.5;
+  // Arms: walk swing + guard (only when not mid-attack)
+  const guardRaise = enemy.guard && !attacking ? 1 : 0;
+  if (!attacking) {
+    parts.armL.rotation.x = b.armLRot.x + Math.sin(enemy.walkPhase) * 0.3 * moveAmt - guardRaise * 0.9;
+    parts.armL.rotation.z = b.armLRot.z + guardRaise * 0.25;
+    parts.armR.rotation.x = b.armRRot.x - Math.sin(enemy.walkPhase) * 0.3 * moveAmt;
+    parts.armR.rotation.z = b.armRRot.z;
+    parts.torso.rotation.y = 0;
+  }
 
   // Torso: breathing, twist into the cut, flinch when staggered
   const idle = Math.sin(now * 0.0022) * 0.015;
   const flinch = enemy.stagger > 0 ? 0.2 : 0;
   parts.torso.rotation.x = b.torsoRotX - flinch;
-  parts.torso.rotation.y = atkArc * 0.3;
   parts.torso.position.y = b.torsoY + Math.abs(Math.sin(enemy.walkPhase)) * 0.02 * moveAmt + idle;
 
   // Head follows the player slightly
@@ -2739,9 +2823,21 @@ function updateEnemy(dt) {
   const attackDist = 2.7 + (sc - 1) * 1.1;
   enemy.guard = dist < guardDist && Math.sin(performance.now() * 0.002 * (0.8 + enemy.aggression * 0.4)) > (0.25 - enemy.aggression * 0.05);
   if (enemy.attackTimer <= 0 && dist < attackDist && enemy.stagger <= 0) {
-    enemy.swinging = true; enemy.swingT = 0; enemy.attackTimer = (1.1 + Math.random() * 0.8) / enemy.aggression; enemy.didHit = false;
-    // Small forward lunge as the attack begins.
-    enemyBody.applyImpulse(new CANNON.Vec3(toPlayer.x * 16 * sc, 0, toPlayer.z * 16 * sc), enemyBody.position);
+    enemy.attackType = pickEnemyAttack(dist, sc);
+    enemy.attackTime = 0;
+    enemy.attackBaseYaw = desiredYaw;
+    enemy.hitMarks = [false, false];
+    enemy.swinging = true;
+    enemy.guard = false;
+    enemy.attackTimer = (1.2 + Math.random() * 0.9) / enemy.aggression;
+    const cfg = ENEMY_ATTACKS[enemy.attackType];
+    const lunge = enemy.attackType === 'thrust' ? 28 : (enemy.attackType === 'bash' ? 22 : (enemy.attackType === 'spin' ? 10 : 15));
+    enemyBody.applyImpulse(new CANNON.Vec3(toPlayer.x * lunge * sc, 0, toPlayer.z * lunge * sc), enemyBody.position);
+    if (cfg) {
+      setMessage(`${enemy.name}: ${cfg.name}!`, 0.55);
+      ensureAudio();
+      playTone({ freq: 220, freq2: 170, dur: 0.12, type: 'sawtooth', gain: 0.02 });
+    }
   }
 
   const basePos = new THREE.Vector3(0.35 * sc, 1.35 * sc, -0.2 * sc);
@@ -2751,12 +2847,14 @@ function updateEnemy(dt) {
     baseRot.set(-0.2, 0.0, 1.1);
   }
   if (enemy.swinging) {
-    enemy.swingT += dt * 3.4 * (0.85 + enemy.speed * 0.25);
-    const p = Math.min(enemy.swingT, 1);
-    const s = Math.sin(p * Math.PI);
-    enemySword.position.set(basePos.x - s * 0.5 * sc, basePos.y - s * 0.1 * sc, basePos.z - s * 0.45 * sc);
-    enemySword.rotation.set(baseRot.x - s * 0.8, baseRot.y - s * 0.9, baseRot.z - s * 0.3);
-    if (p >= 1) enemy.swinging = false;
+    const cfg = ENEMY_ATTACKS[enemy.attackType] || ENEMY_ATTACKS.overhead;
+    enemy.attackTime += dt * (0.9 + enemy.speed * 0.15);
+    const p = Math.min(1, enemy.attackTime / cfg.duration);
+    animateEnemyAttack(p, sc);
+    if (p >= 1) {
+      enemy.swinging = false;
+      enemyGroup.rotation.y = desiredYaw;
+    }
   } else {
     enemySword.position.copy(basePos);
     enemySword.rotation.copy(baseRot);
@@ -2870,42 +2968,68 @@ function tryHits() {
     }
   }
 
-  if (enemy.swinging && !enemy.didHit && dist < 2.2 + (enemy.scale - 1)) {
-    // enemy hits player if not guarding toward enemy
-    const toEnemy = playerToEnemy.clone().normalize();
-    const guarding = playerGuard && forward.dot(toEnemy) > 0.5;
-    if (guarding) {
-      enemy.didHit = true;
-      enemy.swinging = false;
-      enemy.stagger = 0.35;
-      playerStamina = Math.max(0, playerStamina - 10);
-      setMessage('Parry! You deflected the blow', 0.7);
-      clashFlash = 0.6;
-      sfxBlock();
-      const cp = new THREE.Vector3(enemyBody.position.x, 1.3 * enemy.scale, enemyBody.position.z);
-      spawnSparks(cp, 0xffe08a, 10, 2.6);
-      shake = Math.min(0.2, shake + 0.04);
-      hitStop = Math.max(hitStop, 0.04);
-    } else if (invulnTimer > 0) {
-      enemy.didHit = true;
-      setMessage('You are still recovering — the blow glances off.', 0.9);
-    } else {
-      const dmg = (14 + Math.random() * 10) * (enemy.damage || 1);
-      playerHp = Math.max(0, playerHp - dmg);
-      enemy.didHit = true;
-      setMessage(`You were hit! -${dmg.toFixed(0)}`, 0.7);
-      sfxHit();
-      const hitPos = new THREE.Vector3();
-      camera.getWorldPosition(hitPos);
-      const fwd = new THREE.Vector3();
-      camera.getWorldDirection(fwd);
-      hitPos.addScaledVector(fwd, 0.8);
-      spawnSparks(hitPos, 0xff4a3a, 10, 2.2);
-      shake = Math.min(0.28, shake + 0.11);
-      hitStop = Math.max(hitStop, 0.06);
-      if (playerHp <= 0) handlePlayerDeath();
+  if (enemy.swinging) {
+    const cfg = ENEMY_ATTACKS[enemy.attackType];
+    if (cfg) {
+      const toEnemy = playerToEnemy.clone().normalize();
+      const facingDot = forward.dot(toEnemy);
+      const t = enemy.attackTime;
+      for (let i = 0; i < cfg.strikes.length; i++) {
+        if (enemy.hitMarks && !enemy.hitMarks[i] && t >= cfg.strikes[i] && t <= cfg.strikes[i] + 0.2) {
+          const inRange = dist <= cfg.range * enemy.scale;
+          const inArc = cfg.allAround || facingDot > (enemy.attackType === 'thrust' ? 0.55 : 0.15);
+          if (inRange && inArc) {
+            enemy.hitMarks[i] = true;
+            resolveEnemyHit(cfg, toEnemy, forward);
+          }
+        }
+      }
     }
   }
+}
+
+function resolveEnemyHit(cfg, toEnemy, forward) {
+  let guarding = playerGuard && forward.dot(toEnemy) > 0.5;
+  if (guarding && cfg.stamina) {
+    playerStamina = Math.max(0, playerStamina - cfg.stamina);
+    if (playerStamina <= 0) {
+      guarding = false;
+      setMessage('Guard broken by the shield bash!', 0.8);
+    }
+  } else if (guarding) {
+    playerStamina = Math.max(0, playerStamina - 10);
+  }
+
+  if (guarding) {
+    enemy.stagger = cfg.stamina ? 0.12 : 0.35;
+    setMessage(cfg.stamina ? 'Shield bash absorbed — the guard holds' : 'Parry! You deflected the blow', 0.7);
+    clashFlash = 0.6;
+    sfxBlock();
+    const cp = new THREE.Vector3(enemyBody.position.x, 1.3 * enemy.scale, enemyBody.position.z);
+    spawnSparks(cp, 0xffe08a, 10, 2.6);
+    shake = Math.min(0.2, shake + 0.04);
+    hitStop = Math.max(hitStop, 0.04);
+    return;
+  }
+
+  if (invulnTimer > 0) {
+    setMessage('You are still recovering — the blow glances off.', 0.9);
+    return;
+  }
+
+  const dmg = (14 + Math.random() * 10) * (enemy.damage || 1) * cfg.dmg;
+  playerHp = Math.max(0, playerHp - dmg);
+  setMessage(`Hit by ${cfg.name}! -${dmg.toFixed(0)}`, 0.7);
+  sfxHit();
+  const hitPos = new THREE.Vector3();
+  camera.getWorldPosition(hitPos);
+  const fwd = new THREE.Vector3();
+  camera.getWorldDirection(fwd);
+  hitPos.addScaledVector(fwd, 0.8);
+  spawnSparks(hitPos, 0xff4a3a, 10, 2.2);
+  shake = Math.min(0.28, shake + 0.11);
+  hitStop = Math.max(hitStop, 0.06);
+  if (playerHp <= 0) handlePlayerDeath();
 }
 
 function updateLockOn() {
@@ -3363,6 +3487,23 @@ if (Number.isFinite(qGold) && qGold > 0) {
   saveShop();
 }
 if (qs.has('shop')) openShop();
+
+// Debug: exercise all six boss attacks without needing to play.
+if (qs.has('testattacks')) {
+  Object.keys(ENEMY_ATTACKS).forEach((type) => {
+    enemy.attackType = type;
+    enemy.attackTime = 0;
+    enemy.attackBaseYaw = enemyGroup.rotation.y;
+    enemy.hitMarks = [false, false];
+    enemy.swinging = true;
+    for (let i = 0; i < 90; i++) {
+      enemy.attackTime += 1 / 60;
+      updateEnemy(1 / 60);
+    }
+  });
+  enemy.swinging = false;
+  setMessage('Boss attack test complete.', 2);
+}
 
 animate();
 
