@@ -13,8 +13,9 @@ export default function Home() {
 
       <main className="wrap">
         <section className="hero">
-          <h1 className="sr-only">Clash of Steel: Arena Duel</h1>
-          <img className="hero-logo" src="/logo.png" alt="Clash of Steel: Arena Duel" />
+          <img className="hero-icon" src="/icon-256.png" alt="Clash of Steel icon" width="118" height="118" />
+          <div className="kicker">Arena Duel</div>
+          <h1>Clash of <span>Steel</span></h1>
           <p className="tagline">
             A first-person sword-fighting arena. Physics-driven clashes, 900 champions,
             five arenas, and one crown.

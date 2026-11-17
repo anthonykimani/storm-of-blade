@@ -13,7 +13,7 @@ export const metadata = {
     title: 'Clash of Steel: Arena Duel',
     description:
       'Physics-driven sword duels, 900 bosses, five arenas, first and third person.',
-    images: ['/logo.png'],
+    images: ['/icon-256.png'],
   },
 };
 
