@@ -163,6 +163,7 @@
       <div class="muted">First-person sword duels with physics-based clashes - 900 bosses across 5 arenas (Three.js + cannon-es)</div>
       <ul>
         <li><b>Levels:</b> earn XP from victories; level up for more HP, stamina and damage — bosses scale to your level.</li>
+        <li><b>Minibosses:</b> every 10th boss is a gold-marked miniboss with +60% HP, +15% damage, and bonus gold/XP.</li>
         <li><b>Bosses:</b> six attack patterns — overhead cut, sweeping slash, lunging thrust, shield bash (guard break), spinning slash and double cut.</li>
         <li><b>Blade Shop:</b> press <b>H</b> or use the <b>Blade Shop</b> button — earn gold from bosses and golden orbs, then buy faster or harder-hitting swords.</li>
         <li><b>Desktop:</b> Click <b>Enter Arena</b>, then <b>move the mouse to look</b> (no dragging needed), <b>click</b> to slash, <b>hold right-click</b> to guard, <b>Space</b> dodge, <b>F</b> lock-on (boss or nearest training dummy), <b>V</b> or the <b>3rd Person</b> button to switch view, <b>R</b> restart, <b>N</b> next boss. Arrow keys also look; <b>-</b>/<b>=</b> change sensitivity.</li>
@@ -1709,6 +1710,7 @@ for (let i = 0; bosses.length < TARGET_BOSS_COUNT; i++) {
     weapon: bossWeapons[(n * 3) % bossWeapons.length],
     map: arena.theme,
     mapName: arena.name,
+    miniboss: (n + 1) % 10 === 0,
   });
 }
 
@@ -1727,6 +1729,7 @@ Object.assign(bosses[bosses.length - 1], {
   weapon: 'greatsword',
   map: 'temple',
   mapName: 'Throne of the Titan',
+  miniboss: false,
 });
 let bossIndex = 0;
 
@@ -2064,6 +2067,22 @@ function buildEnemyCharacter(cfg) {
   enemyGroup.add(enemySword);
   enemySwordBody = swordBody();
   world.addBody(enemySwordBody);
+
+  if (cfg.miniboss) {
+    const gold = new THREE.MeshStandardMaterial({ color: 0xffcf5a, metalness: 0.85, roughness: 0.28, emissive: 0x5a3c00, emissiveIntensity: 0.4 });
+    const ring1 = new THREE.Mesh(new THREE.TorusGeometry(0.75 * s, 0.045 * s, 8, 40), gold);
+    ring1.rotation.x = -Math.PI / 2;
+    ring1.position.y = 0.035;
+    enemyGroup.add(ring1);
+    const ring2 = new THREE.Mesh(new THREE.TorusGeometry(0.95 * s, 0.02 * s, 8, 48), new THREE.MeshBasicMaterial({ color: 0xffcf5a, transparent: true, opacity: 0.4 }));
+    ring2.rotation.x = -Math.PI / 2;
+    ring2.position.y = 0.02;
+    enemyGroup.add(ring2);
+    const crest = new THREE.Mesh(new THREE.ConeGeometry(0.07 * s, 0.2 * s, 5), gold);
+    crest.position.set(0, 2.2 * s, 0);
+    crest.castShadow = true;
+    enemyGroup.add(crest);
+  }
 }
 
 const enemyBody = new CANNON.Body({ mass: 80, shape: new CANNON.Cylinder(0.4, 0.4, 1.8, 8), material: defaultMat, linearDamping: 0.85, angularDamping: 1.0 });
@@ -2085,8 +2104,9 @@ function loadBoss(index, announce = true) {
   enemy.name = cfg.name;
   enemy.title = cfg.title;
   enemy.level = playerLevel + Math.floor(bossIndex / 100);
-  const hpScale = Math.min(4, 1 + 0.08 * (enemy.level - 1));
-  const dmgScale = Math.min(2.2, 1 + 0.03 * (enemy.level - 1));
+  enemy.miniboss = !!cfg.miniboss;
+  const hpScale = Math.min(4, 1 + 0.08 * (enemy.level - 1)) * (cfg.miniboss ? 1.6 : 1);
+  const dmgScale = Math.min(2.2, 1 + 0.03 * (enemy.level - 1)) * (cfg.miniboss ? 1.15 : 1);
   enemy.maxHp = Math.max(50, Math.round(cfg.maxHp * hpScale));
   enemy.hp = enemy.maxHp;
   enemy.alive = true;
@@ -2103,7 +2123,7 @@ function loadBoss(index, announce = true) {
   enemy.speed = cfg.speed;
   enemy.aggression = cfg.aggression;
   enemy.damage = cfg.damage * dmgScale;
-  enemy.scale = cfg.scale || 1;
+  enemy.scale = (cfg.scale || 1) * (cfg.miniboss ? 1.08 : 1);
   enemy.walkPhase = Math.random() * Math.PI * 2;
   resizeEnemyBody(enemy.scale);
   enemyGroup.rotation.set(0, 0, 0);
@@ -2112,10 +2132,13 @@ function loadBoss(index, announce = true) {
   bonusUsed = false;
   enemyBody.collisionResponse = true;
   buildMap(cfg.map || 'courtyard');
-  buildEnemyCharacter(cfg);
+  buildEnemyCharacter(Object.assign({}, cfg, { scale: enemy.scale }));
   enemyBody.position.set(0, 0.9 * enemy.scale, 0);
   enemyBody.velocity.set(0, 0, 0);
-  if (announce) setMessage(`Boss ${bossIndex + 1}/${bosses.length}: ${enemy.name}, ${enemy.title} (Lv. ${enemy.level}) — ${cfg.mapName || 'Arena'}`, 3.5);
+  if (announce) {
+    const prefix = cfg.miniboss ? 'MINIBOSS! ' : '';
+    setMessage(`${prefix}Boss ${bossIndex + 1}/${bosses.length}: ${enemy.name}, ${enemy.title} (Lv. ${enemy.level}) — ${cfg.mapName || 'Arena'}`, 3.5);
+  }
 }
 
 let clashFlash = 0;
@@ -2891,8 +2914,9 @@ function defeatEnemy() {
   enemy.swinging = false;
   enemyBody.velocity.set(0, 0, 0);
   enemyBody.collisionResponse = false;
-  addGold(25 + bossIndex * 3);
-  gainXp(45 + bossIndex * 2);
+  addGold(25 + bossIndex * 3 + (enemy.miniboss ? 75 : 0));
+  gainXp(45 + bossIndex * 2 + (enemy.miniboss ? 60 : 0));
+  if (enemy.miniboss && playerLives < playerMaxLives) playerLives++;
   const cp = new THREE.Vector3(enemyBody.position.x, 1.2 * enemy.scale, enemyBody.position.z);
   spawnSparks(cp, 0xff6a3a, 18, 3.2);
   shake = Math.min(0.3, shake + 0.12);
@@ -3269,7 +3293,7 @@ function updateHUD() {
   }
   statusEl.innerHTML =
     `${HERO_NAME} Lv.${playerLevel} <span class="muted">(XP ${playerXp}/${xpToNext(playerLevel)})</span>: <b>${playerHp.toFixed(0)}</b>/${playerMaxHp} &nbsp; Lives: <b>${hearts}</b> &nbsp; Stamina: <b>${stam.toFixed(0)}</b>/${playerMaxStamina} &nbsp; Sword: <b>+${swordBonus}</b> &nbsp; Gold: <b>${gold}</b><br>` +
-    `Boss ${bossIndex + 1}/${bosses.length} - ${enemy.name} Lv.${enemy.level}: <b>${enemy.alive ? enemy.hp.toFixed(0) : 0}</b>/${enemy.maxHp} <span class="muted">· ${bosses[bossIndex].mapName || 'Arena'}</span><br>` +
+    `Boss ${bossIndex + 1}/${bosses.length} - ${enemy.miniboss ? '<b>MINIBOSS</b> · ' : ''}${enemy.name} Lv.${enemy.level}: <b>${enemy.alive ? enemy.hp.toFixed(0) : 0}</b>/${enemy.maxHp} <span class="muted">· ${bosses[bossIndex].mapName || 'Arena'}</span><br>` +
     `<span class="muted">${over ? (playerHp <= 0 ? 'Press <b>R</b> to start over' : (bossIndex < bosses.length - 1 ? 'Press <b>N</b> for next boss, <b>R</b> to replay' : 'Press <b>R</b> to play again')) : (playerGuard ? 'Guarding (reduced stamina regen)' : 'Ready')}${!over && invulnTimer > 0 ? ' · recovering (brief invulnerability)' : ''}${!over && playerSwing.cooldown > 0 ? ' · recovering' : ''}${!over && enemy.guard && enemy.alive ? ' · enemy guarding' : ''}${!over && stam < 20 ? ' · exhausted' : ''}${!over && lockOn && enemy.alive ? ' · locked on (F)' : ''}${!over ? (controls.isLocked ? ' · mouse-locked' : (fallbackLook ? ' · free-look' : '')) : ''}</span>`;
 }
 
