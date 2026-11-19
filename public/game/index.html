@@ -92,6 +92,16 @@
     .endingButtons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
     .endingButtons button { margin: 0; }
     @media (max-width: 520px) { #endingStats { grid-template-columns: 1fr; } }
+    #badEndingOverlay { position: fixed; inset: 0; z-index: 41; display: none; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 20%, rgba(140,26,26,0.32), rgba(6,6,8,0.97) 62%); }
+    #badEndingPanel { width: min(700px, calc(100vw - 28px)); max-height: 90vh; overflow-y: auto; text-align: center;
+      background: linear-gradient(180deg, #241a1c, #121014); border: 1px solid #6a2a2a; border-radius: 18px;
+      padding: 32px 30px; box-shadow: 0 40px 120px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.05); }
+    .badKicker { font-size: 11px; letter-spacing: 0.32em; color: #d45a4a; margin-bottom: 10px; }
+    #badEndingPanel h2 { margin: 0 0 14px; font-size: clamp(26px, 4vw, 38px); color: #f0d8d2; }
+    #badEndingStory { color: #c9b8b6; font-size: 15px; line-height: 1.75; max-width: 560px; margin: 0 auto 18px; }
+    #badEndingStats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 0 24px; text-align: left; }
+    @media (max-width: 520px) { #badEndingStats { grid-template-columns: 1fr; } }
     @media (max-width: 640px) {
       .shopItem { flex-wrap: wrap; }
       .shopAction { width: 100%; text-align: right; }
@@ -188,12 +198,29 @@
       </div>
     </div>
   </div>
+  <div id="badEndingOverlay">
+    <div id="badEndingPanel">
+      <div class="badKicker">A FALLEN CHALLENGER</div>
+      <h2>The Arena Claims Another</h2>
+      <p id="badEndingStory">
+        The sand drinks the last of Kaelen&apos;s strength. The crowd turns away, one by one,
+        and the champions keep their thrones. Beyond the walls, the bards do not sing — they
+        only whisper the name of another challenger who never reached the crown.
+      </p>
+      <div id="badEndingStats"></div>
+      <div class="endingButtons">
+        <button id="badRetry" type="button">Rise Again</button>
+        <button id="badMenu" type="button" class="ghost">Main Menu</button>
+      </div>
+    </div>
+  </div>
   <div id="overlay">
     <div id="panel">
       <h1>Clash of Steel: Arena Duel</h1>
       <div class="muted">First-person sword duels with physics-based clashes - 900 bosses across 5 arenas (Three.js + cannon-es)</div>
       <ul>
         <li><b>Levels:</b> earn XP from victories; level up for more HP, stamina and damage — bosses scale to your level.</li>
+        <li><b>Bad ending:</b> lose all lives to see the Arena Claims Another screen — Rise Again or return to the menu.</li>
         <li><b>Ending:</b> defeat boss 900 for the Crown of Vaelen ending, stats, and the Crownblade reward.</li>
         <li><b>Final boss:</b> boss 900 is Vaelen, a 2.6× giant with a crown, ground-slam shockwave and 2600 HP.</li>
         <li><b>Minibosses:</b> every 10th boss is a gold-marked miniboss with +60% HP, +15% damage, and bonus gold/XP.</li>
@@ -237,6 +264,10 @@ const endingOverlay = document.getElementById('endingOverlay');
 const endingStats = document.getElementById('endingStats');
 const endingNewGame = document.getElementById('endingNewGame');
 const endingMenu = document.getElementById('endingMenu');
+const badEndingOverlay = document.getElementById('badEndingOverlay');
+const badEndingStats = document.getElementById('badEndingStats');
+const badRetry = document.getElementById('badRetry');
+const badMenu = document.getElementById('badMenu');
 
 const startHint = document.getElementById('startHint');
 const statusEl = document.getElementById('status');
@@ -340,6 +371,7 @@ let playerLevel = 1;
 let playerXp = 0;
 let endingTimer = -1;
 let endingShown = false;
+let badEndingShown = false;
 
 
 let lookSensitivity = 0.0024;
@@ -1094,6 +1126,10 @@ window.addEventListener('keydown', (e) => {
     if (endingShown && e.code === 'Escape') location.reload();
     return;
   }
+  if (badEndingShown) {
+    if (e.code === 'Escape') location.reload();
+    return;
+  }
   if (e.code === 'KeyT') {
     if (trainingMode) endTraining(); else startTraining();
     return;
@@ -1736,7 +1772,9 @@ function showEnding() {
 function newGamePlus() {
   endingShown = false;
   endingTimer = -1;
+  badEndingShown = false;
   if (endingOverlay) endingOverlay.style.display = 'none';
+  if (badEndingOverlay) badEndingOverlay.style.display = 'none';
   bossIndex = 0;
   playerLives = playerMaxLives;
   loadBoss(0, false);
@@ -1747,6 +1785,45 @@ function newGamePlus() {
 
 if (endingNewGame) endingNewGame.addEventListener('click', (e) => { e.preventDefault(); newGamePlus(); });
 if (endingMenu) endingMenu.addEventListener('click', (e) => { e.preventDefault(); location.reload(); });
+
+// ---- Bad ending: run out of lives ----
+function showBadEnding() {
+  if (badEndingShown) return;
+  badEndingShown = true;
+  if (badEndingStats) {
+    const rows = [
+      ['Fell at', `Boss ${bossIndex + 1} / ${bosses.length}`],
+      ['Arena', bosses[bossIndex].mapName || 'Arena'],
+      ['Level', playerLevel],
+      ['Gold', gold],
+      ['Sword', equippedSword().name],
+      ['Lives', '0']
+    ];
+    badEndingStats.innerHTML = rows.map(([k, v]) => `<div class="endStat"><span>${k}</span><b>${v}</b></div>`).join('');
+  }
+  if (badEndingOverlay) badEndingOverlay.style.display = 'flex';
+  if (document.pointerLockElement) document.exitPointerLock();
+  fallbackActive = false;
+  setMessage('', 0.1);
+}
+
+function retryFromBadEnding() {
+  badEndingShown = false;
+  if (badEndingOverlay) badEndingOverlay.style.display = 'none';
+  playerLives = playerMaxLives;
+  playerHp = playerMaxHp;
+  playerStamina = playerMaxStamina;
+  playerDeathT = -1;
+  deathRespawnPending = false;
+  resetDeathState();
+  loadBoss(bossIndex, false);
+  resetPlayerState();
+  setMessage('You rise again. The arena is not finished with you.', 3);
+  requestStart();
+}
+
+if (badRetry) badRetry.addEventListener('click', (e) => { e.preventDefault(); retryFromBadEnding(); });
+if (badMenu) badMenu.addEventListener('click', (e) => { e.preventDefault(); location.reload(); });
 
 
 
@@ -2492,6 +2569,7 @@ function updatePlayerDeath(dt) {
     controls.getObject().rotation.set(pitch, yaw, 0, 'YXZ');
     setMessage(`You rise again. Lives left: ${playerLives}.`, 2.5);
   }
+  if (p >= 1 && playerLives <= 0 && !badEndingShown) showBadEnding();
 }
 
 function resetDeathState() {
@@ -3763,6 +3841,12 @@ if (qs.has('testending')) {
   defeatEnemy();
   endingTimer = -1;
   showEnding();
+}
+
+// Debug: preview the bad ending.
+if (qs.has('testbad')) {
+  playerLives = 0;
+  showBadEnding();
 }
 
 // Debug: exercise all six boss attacks without needing to play.
