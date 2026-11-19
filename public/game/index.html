@@ -77,6 +77,21 @@
     #shopFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px;
       border-top: 1px solid rgba(255,255,255,0.07); font-size: 12.5px; color: #a7b0bc; }
     #shopClose { margin: 0; }
+    #endingOverlay { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+      background: radial-gradient(circle at 50% 8%, rgba(240,199,94,0.28), rgba(8,9,12,0.97) 62%); }
+    #endingPanel { width: min(700px, calc(100vw - 28px)); max-height: 90vh; overflow-y: auto; text-align: center;
+      background: linear-gradient(180deg, #1d222b, #101318); border: 1px solid #6a5625; border-radius: 18px;
+      padding: 32px 30px; box-shadow: 0 40px 120px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.06); }
+    .endingKicker { font-size: 11px; letter-spacing: 0.32em; color: #d4a83e; margin-bottom: 10px; }
+    #endingPanel h2 { margin: 0 0 14px; font-size: clamp(26px, 4vw, 38px); color: #f4ead6; }
+    #endingStory { color: #c9d1db; font-size: 15px; line-height: 1.75; max-width: 560px; margin: 0 auto 18px; }
+    #endingStats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 0 24px; text-align: left; }
+    .endStat { background: #0f1318; border: 1px solid #333a44; border-radius: 10px; padding: 10px 12px; }
+    .endStat span { display: block; color: #8f9aa8; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }
+    .endStat b { font-size: 17px; color: #f0c75e; }
+    .endingButtons { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .endingButtons button { margin: 0; }
+    @media (max-width: 520px) { #endingStats { grid-template-columns: 1fr; } }
     @media (max-width: 640px) {
       .shopItem { flex-wrap: wrap; }
       .shopAction { width: 100%; text-align: right; }
@@ -157,12 +172,29 @@
       </div>
     </div>
   </div>
+  <div id="endingOverlay">
+    <div id="endingPanel">
+      <div class="endingKicker">THE CROWN OF VAELEN</div>
+      <h2>The Last Titan Falls</h2>
+      <p id="endingStory">
+        The great blade crashes to the stone. The five arenas fall silent, and the old duelling law
+        is broken at last. Kaelen Dray ascends the empty throne — not as a challenger, but as the
+        champion of Vaelen. The bards will sing of nine hundred broken blades.
+      </p>
+      <div id="endingStats"></div>
+      <div class="endingButtons">
+        <button id="endingNewGame" type="button">New Game+</button>
+        <button id="endingMenu" type="button" class="ghost">Main Menu</button>
+      </div>
+    </div>
+  </div>
   <div id="overlay">
     <div id="panel">
       <h1>Clash of Steel: Arena Duel</h1>
       <div class="muted">First-person sword duels with physics-based clashes - 900 bosses across 5 arenas (Three.js + cannon-es)</div>
       <ul>
         <li><b>Levels:</b> earn XP from victories; level up for more HP, stamina and damage — bosses scale to your level.</li>
+        <li><b>Ending:</b> defeat boss 900 for the Crown of Vaelen ending, stats, and the Crownblade reward.</li>
         <li><b>Final boss:</b> boss 900 is Vaelen, a 2.6× giant with a crown, ground-slam shockwave and 2600 HP.</li>
         <li><b>Minibosses:</b> every 10th boss is a gold-marked miniboss with +60% HP, +15% damage, and bonus gold/XP.</li>
         <li><b>Bosses:</b> six attack patterns — overhead cut, sweeping slash, lunging thrust, shield bash (guard break), spinning slash and double cut.</li>
@@ -201,6 +233,10 @@ const shopOverlay = document.getElementById('shopOverlay');
 const shopList = document.getElementById('shopList');
 const shopGold = document.getElementById('shopGold');
 const shopClose = document.getElementById('shopClose');
+const endingOverlay = document.getElementById('endingOverlay');
+const endingStats = document.getElementById('endingStats');
+const endingNewGame = document.getElementById('endingNewGame');
+const endingMenu = document.getElementById('endingMenu');
 
 const startHint = document.getElementById('startHint');
 const statusEl = document.getElementById('status');
@@ -302,6 +338,8 @@ let swordBonus = 0;
 const MAX_SWORD_BONUS = 30;
 let playerLevel = 1;
 let playerXp = 0;
+let endingTimer = -1;
+let endingShown = false;
 
 
 let lookSensitivity = 0.0024;
@@ -1052,6 +1090,10 @@ window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyH') closeShop();
     return;
   }
+  if (endingShown || endingTimer > 0) {
+    if (endingShown && e.code === 'Escape') location.reload();
+    return;
+  }
   if (e.code === 'KeyT') {
     if (trainingMode) endTraining(); else startTraining();
     return;
@@ -1493,7 +1535,8 @@ const SWORDS = [
   { id: 'titan', name: 'Titanslayer', cost: 4200, damage: 30, speed: 0.95, reach: 0.25, width: 1.35, length: 1.18, color: 0xf0d27a, glow: 0.12, desc: 'Forged for giants. Heavy damage and reach.' },
   { id: 'night', name: 'Nightfang', cost: 7000, damage: 26, speed: 1.4, reach: 0.1, width: 0.8, length: 1.0, color: 0x7f2a2a, glow: 0.3, desc: 'A whisper of red steel. Very fast.' },
   { id: 'dawn', name: 'Dawnbringer', cost: 12000, damage: 40, speed: 1.2, reach: 0.15, width: 1.15, length: 1.12, color: 0xffe6a1, glow: 0.45, desc: 'Golden light runs down the fuller.' },
-  { id: 'void', name: 'Voidedge', cost: 20000, damage: 52, speed: 1.1, reach: 0.2, width: 1.1, length: 1.15, color: 0x8a6cff, glow: 0.55, desc: 'A blade cut from the space between stars.' }
+  { id: 'void', name: 'Voidedge', cost: 20000, damage: 52, speed: 1.1, reach: 0.2, width: 1.1, length: 1.15, color: 0x8a6cff, glow: 0.55, desc: 'A blade cut from the space between stars.' },
+  { id: 'crown', name: 'Crownblade of Vaelen', cost: 99999, damage: 60, speed: 1.15, reach: 0.2, width: 1.2, length: 1.15, color: 0xffe6a1, glow: 0.6, desc: 'Awarded for defeating the Last Titan. The crown’s own blade.' }
 ];
 function equippedSword() { return SWORDS.find((s) => s.id === equippedSwordId) || SWORDS[0]; }
 
@@ -1660,6 +1703,50 @@ if (shopClose) shopClose.addEventListener('click', (e) => { e.preventDefault(); 
 
 loadShop();
 applySwordVisuals();
+
+// ---- Good ending after the final boss ----
+function showEnding() {
+  if (endingShown) return;
+  endingShown = true;
+  endingTimer = -1;
+  const crown = SWORDS.find((s) => s.id === 'crown');
+  if (crown) {
+    ownedSwords.add('crown');
+    equippedSwordId = 'crown';
+    saveShop();
+    applySwordVisuals();
+  }
+  if (endingStats) {
+    const rows = [
+      ['Bosses defeated', `${bosses.length} / ${bosses.length}`],
+      ['Title', 'Champion of Vaelen'],
+      ['Level', playerLevel],
+      ['Gold', gold],
+      ['Sword', equippedSword().name],
+      ['Lives', `${playerLives} / ${playerMaxLives}`]
+    ];
+    endingStats.innerHTML = rows.map(([k, v]) => `<div class="endStat"><span>${k}</span><b>${v}</b></div>`).join('');
+  }
+  if (endingOverlay) endingOverlay.style.display = 'flex';
+  if (document.pointerLockElement) document.exitPointerLock();
+  fallbackActive = false;
+  setMessage('', 0.1);
+}
+
+function newGamePlus() {
+  endingShown = false;
+  endingTimer = -1;
+  if (endingOverlay) endingOverlay.style.display = 'none';
+  bossIndex = 0;
+  playerLives = playerMaxLives;
+  loadBoss(0, false);
+  resetPlayerState();
+  setMessage('New Game+ — the arenas call again.', 3);
+  requestStart();
+}
+
+if (endingNewGame) endingNewGame.addEventListener('click', (e) => { e.preventDefault(); newGamePlus(); });
+if (endingMenu) endingMenu.addEventListener('click', (e) => { e.preventDefault(); location.reload(); });
 
 
 
@@ -3056,6 +3143,10 @@ function defeatEnemy() {
   addGold(25 + bossIndex * 3 + (enemy.miniboss ? 75 : 0));
   gainXp(45 + bossIndex * 2 + (enemy.miniboss ? 60 : 0));
   if (enemy.miniboss && playerLives < playerMaxLives) playerLives++;
+  if (bossIndex === bosses.length - 1) {
+    endingShown = false;
+    endingTimer = 2.6;
+  }
   const cp = new THREE.Vector3(enemyBody.position.x, 1.2 * enemy.scale, enemyBody.position.z);
   spawnSparks(cp, 0xff6a3a, 18, 3.2);
   shake = Math.min(0.3, shake + 0.12);
@@ -3554,6 +3645,11 @@ function animate() {
   updateParticles(dt);
   updateShockwaves(dt);
   dustMotes.rotation.y += dt * 0.008;
+
+  if (endingTimer > 0) {
+    endingTimer -= dt;
+    if (endingTimer <= 0) showEnding();
+  }
   shake = Math.max(0, shake - dt * 2.4);
   if (shake > 0.0005) {
     camera.position.x += (Math.random() - 0.5) * shake;
@@ -3656,6 +3752,17 @@ if (qs.has('shop')) openShop();
 if (qs.has('testbonus')) {
   enemy.alive = false;
   startBonus();
+}
+
+// Debug: trigger the good ending on the final boss.
+if (qs.has('testending')) {
+  enemy.alive = false;
+  bossIndex = bosses.length - 1;
+  loadBoss(bosses.length - 1, false);
+  enemy.hp = 0;
+  defeatEnemy();
+  endingTimer = -1;
+  showEnding();
 }
 
 // Debug: exercise all six boss attacks without needing to play.
