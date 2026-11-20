@@ -77,6 +77,11 @@
     #shopFooter { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px;
       border-top: 1px solid rgba(255,255,255,0.07); font-size: 12.5px; color: #a7b0bc; }
     #shopClose { margin: 0; }
+    #shopTabs { display: flex; gap: 8px; padding: 14px 16px 0; }
+    .shopTab { margin: 0; padding: 8px 18px; font-size: 13px; border-radius: 8px; cursor: pointer;
+      border: 1px solid #3a424d; background: #151a20; color: #a7b0bc; }
+    .shopTab:hover { border-color: #6b7785; }
+    .shopTab.active { border-color: #b08b30; background: #2a2418; color: #f0c75e; }
     #endingOverlay { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
       background: radial-gradient(circle at 50% 8%, rgba(240,199,94,0.28), rgba(8,9,12,0.97) 62%); }
     #endingPanel { width: min(700px, calc(100vw - 28px)); max-height: 90vh; overflow-y: auto; text-align: center;
@@ -171,13 +176,17 @@
       <div id="shopHeader">
         <div>
           <div class="shopKicker">ARMORY</div>
-          <h2>Blade Shop</h2>
+          <h2>Blades &amp; Armour</h2>
         </div>
         <div id="shopGold">Gold: 0</div>
       </div>
+      <div id="shopTabs">
+        <button id="shopTabBlades" class="shopTab active" type="button">Blades</button>
+        <button id="shopTabArmour" class="shopTab" type="button">Armour</button>
+      </div>
       <div id="shopList"></div>
       <div id="shopFooter">
-        <span>Earn gold by defeating bosses and collecting bonus orbs.</span>
+        <span>Spend gold on blades and armour. Armour reduces damage and raises HP and stamina.</span>
         <button id="shopClose" type="button">Close</button>
       </div>
     </div>
@@ -260,6 +269,8 @@ const shopOverlay = document.getElementById('shopOverlay');
 const shopList = document.getElementById('shopList');
 const shopGold = document.getElementById('shopGold');
 const shopClose = document.getElementById('shopClose');
+const shopTabBlades = document.getElementById('shopTabBlades');
+const shopTabArmour = document.getElementById('shopTabArmour');
 const endingOverlay = document.getElementById('endingOverlay');
 const endingStats = document.getElementById('endingStats');
 const endingNewGame = document.getElementById('endingNewGame');
@@ -362,6 +373,9 @@ let pitch = 0;
 let gold = 0;
 let ownedSwords = new Set(['iron']);
 let equippedSwordId = 'iron';
+let ownedArmour = new Set(['none']);
+let equippedArmourId = 'none';
+let shopTab = 'blades';
 let shopOpen = false;
 let shopResume = false;
 let shopWasFallback = false;
@@ -1430,11 +1444,13 @@ function buildPlayerAvatar() {
   const emblem = new THREE.Mesh(new THREE.CircleGeometry(0.045, 14), new THREE.MeshStandardMaterial({ color: 0xc9a04a, metalness: 0.75, roughness: 0.35 }));
   emblem.position.set(0, -0.34, 0.17); torso.add(emblem);
 
+  const pads = [];
   for (const side of [-1, 1]) {
     const pad = new THREE.Mesh(new THREE.SphereGeometry(0.13, 14, 12), steel);
     pad.scale.set(1, 0.8, 1);
     pad.position.set(side * 0.38, 0.3, 0);
     pad.castShadow = true; torso.add(pad);
+    pads.push(pad);
   }
 
   const head = new THREE.Group();
@@ -1514,6 +1530,7 @@ function buildPlayerAvatar() {
   buildLeg(legR);
 
   g.userData.parts = { torso, head, armL, armR, legL, legR, sword, shield, walkPhase: 0 };
+  g.userData.armour = { steel, steelDark, trim, leather, chest, pads };
   g.visible = false;
   scene.add(g);
   return g;
@@ -1576,6 +1593,41 @@ const SWORDS = [
 ];
 function equippedSword() { return SWORDS.find((s) => s.id === equippedSwordId) || SWORDS[0]; }
 
+// ---- Armour Shop ----
+// defense = fraction of incoming damage absorbed, hp/stamina are flat max bonuses,
+// speed multiplies movement speed (heavier plate slows you slightly).
+const ARMOUR = [
+  { id: 'none', name: "Traveler's Garb", cost: 0, defense: 0.00, hp: 0, stamina: 0, speed: 1.00, color: 0x8f9aa8, trim: 0x2e6f8a, bulk: 1.00, desc: 'Strapped leather over a linen shirt. No protection, full mobility.' },
+  { id: 'leather', name: 'Leather Jerkin', cost: 120, defense: 0.06, hp: 10, stamina: 5, speed: 1.00, color: 0x7a5535, trim: 0x9c6b3f, bulk: 1.02, desc: 'Boiled leather plates. Light enough to forget you are wearing it.' },
+  { id: 'chain', name: 'Chainmail Hauberk', cost: 350, defense: 0.12, hp: 22, stamina: 10, speed: 0.99, color: 0x9aa3ad, trim: 0x6f7a86, bulk: 1.05, desc: 'Riveted rings that spread the force of a cut.' },
+  { id: 'scale', name: 'Scale Cuirass', cost: 800, defense: 0.18, hp: 38, stamina: 14, speed: 0.98, color: 0x88929e, trim: 0xb08b30, bulk: 1.09, desc: 'Overlapping steel scales, banded in brass.' },
+  { id: 'knight', name: "Knight's Plate", cost: 1500, defense: 0.24, hp: 60, stamina: 18, speed: 0.96, color: 0xb9c4cf, trim: 0x2e6f8a, bulk: 1.13, desc: 'Full tempered plate with a blue tabard and crest.' },
+  { id: 'guardian', name: 'Guardian Bulwark', cost: 2800, defense: 0.30, hp: 85, stamina: 26, speed: 0.94, color: 0x8fa3b5, trim: 0xd4a03a, bulk: 1.17, desc: 'Thick arena plate worn by the shield-champions of old.' },
+  { id: 'dragon', name: 'Dragonbone Mail', cost: 5200, defense: 0.36, hp: 115, stamina: 32, speed: 0.95, color: 0x7d2b26, trim: 0xffb347, bulk: 1.20, desc: 'Scales cut from a slain wyrm, still warm to the touch.' },
+  { id: 'titan', name: 'Titanplate of Vaelen', cost: 9000, defense: 0.42, hp: 170, stamina: 42, speed: 0.92, color: 0x555260, trim: 0xd4a03a, bulk: 1.24, desc: 'A fragment of the Last Titan’s own harness, reforged for a mortal.' },
+  { id: 'aegis', name: 'Aegis of the Last Crown', cost: 16000, defense: 0.48, hp: 230, stamina: 55, speed: 0.90, color: 0x2c2f3a, trim: 0xffe6a1, bulk: 1.28, desc: 'Black steel laced with crown-gold. The arena itself seems to flinch.' }
+];
+function equippedArmour() { return ARMOUR.find((a) => a.id === equippedArmourId) || ARMOUR[0]; }
+function armourDefence() { return Math.min(0.6, equippedArmour().defense || 0); }
+function armourHpBonus() { return equippedArmour().hp || 0; }
+function armourStaminaBonus() { return equippedArmour().stamina || 0; }
+function armourSpeedMult() { return equippedArmour().speed || 1; }
+function baseMaxHp() { return 100 + 10 * (playerLevel - 1); }
+function baseMaxStamina() { return 100 + 4 * (playerLevel - 1); }
+function refreshPlayerMaxStats(heal) {
+  const oldHpMax = playerMaxHp;
+  const oldStamMax = playerMaxStamina;
+  playerMaxHp = baseMaxHp() + armourHpBonus();
+  playerMaxStamina = baseMaxStamina() + armourStaminaBonus();
+  if (heal) {
+    playerHp = playerMaxHp;
+    playerStamina = playerMaxStamina;
+  } else {
+    playerHp = Math.min(playerMaxHp, playerHp + Math.max(0, playerMaxHp - oldHpMax));
+    playerStamina = Math.min(playerMaxStamina, playerStamina + Math.max(0, playerMaxStamina - oldStamMax));
+  }
+}
+
 const SHOP_KEY = 'clash-of-steel-shop-v1';
 function loadShop() {
   try {
@@ -1586,15 +1638,23 @@ function loadShop() {
       if (Array.isArray(data.owned)) ownedSwords = new Set(data.owned.filter((id) => SWORDS.some((s) => s.id === id)));
       ownedSwords.add('iron');
       if (typeof data.equipped === 'string' && ownedSwords.has(data.equipped)) equippedSwordId = data.equipped;
+      if (Array.isArray(data.ownedArmour)) ownedArmour = new Set(data.ownedArmour.filter((id) => ARMOUR.some((a) => a.id === id)));
+      ownedArmour.add('none');
+      if (typeof data.equippedArmour === 'string' && ownedArmour.has(data.equippedArmour)) equippedArmourId = data.equippedArmour;
       if (Number.isFinite(data.level)) playerLevel = Math.max(1, Math.min(999, data.level | 0));
       if (Number.isFinite(data.xp)) playerXp = Math.max(0, data.xp | 0);
     }
   } catch (e) {}
   if (!ownedSwords.has(equippedSwordId)) equippedSwordId = 'iron';
+  if (!ownedArmour.has(equippedArmourId)) equippedArmourId = 'none';
 }
 function saveShop() {
   try {
-    localStorage.setItem(SHOP_KEY, JSON.stringify({ gold, owned: [...ownedSwords], equipped: equippedSwordId, level: playerLevel, xp: playerXp }));
+    localStorage.setItem(SHOP_KEY, JSON.stringify({
+      gold, owned: [...ownedSwords], equipped: equippedSwordId,
+      ownedArmour: [...ownedArmour], equippedArmour: equippedArmourId,
+      level: playerLevel, xp: playerXp
+    }));
   } catch (e) {}
 }
 function addGold(n) {
@@ -1622,10 +1682,30 @@ function applySwordVisuals() {
   }
 }
 
+function applyArmourVisuals() {
+  const a = equippedArmour();
+  const ud = playerAvatar && playerAvatar.userData.armour;
+  if (!ud) return;
+  const base = new THREE.Color(a.color || 0x8f9aa8);
+  if (ud.steel) ud.steel.color.copy(base);
+  if (ud.steelDark) ud.steelDark.color.copy(base).multiplyScalar(0.78);
+  if (ud.trim) ud.trim.color.setHex(a.trim || 0x2e6f8a);
+  if (ud.leather) ud.leather.color.setHex(a.id === 'none' ? 0x4a3322 : base.clone().multiplyScalar(0.55).getHex());
+  const bulk = a.bulk || 1;
+  if (ud.chest) ud.chest.scale.set(bulk, 1 + (bulk - 1) * 0.45, bulk);
+  for (const pad of ud.pads) pad.scale.set(bulk, 0.8 * bulk, bulk);
+}
+
 function renderShop() {
   if (!shopList) return;
   shopGold.textContent = `Gold: ${gold}`;
+  if (shopTabBlades) shopTabBlades.classList.toggle('active', shopTab === 'blades');
+  if (shopTabArmour) shopTabArmour.classList.toggle('active', shopTab === 'armour');
   shopList.innerHTML = '';
+  if (shopTab === 'armour') {
+    renderArmourList();
+    return;
+  }
   for (const s of SWORDS) {
     const owned = ownedSwords.has(s.id);
     const equipped = equippedSwordId === s.id;
@@ -1670,6 +1750,82 @@ function renderShop() {
   }
 }
 
+function renderArmourList() {
+  for (const a of ARMOUR) {
+    const owned = ownedArmour.has(a.id);
+    const equipped = equippedArmourId === a.id;
+    const row = document.createElement('div');
+    row.className = 'shopItem' + (owned ? ' owned' : '') + (equipped ? ' equipped' : '');
+
+    const swatch = document.createElement('div');
+    swatch.className = 'shopSwatch';
+    const c1 = '#' + a.color.toString(16).padStart(6, '0');
+    const c2 = '#' + a.trim.toString(16).padStart(6, '0');
+    swatch.style.background = `linear-gradient(135deg, ${c1} 55%, ${c2} 55%)`;
+
+    const info = document.createElement('div');
+    info.className = 'shopInfo';
+    const name = document.createElement('div');
+    name.className = 'shopName';
+    name.textContent = a.name;
+    const desc = document.createElement('div');
+    desc.className = 'shopDesc';
+    desc.textContent = a.desc;
+    const stats = document.createElement('div');
+    stats.className = 'shopStats';
+    stats.textContent = `Defence ${Math.round(a.defense * 100)}% · HP +${a.hp} · Stamina +${a.stamina}${a.speed < 1 ? ` · Speed ${a.speed.toFixed(2)}×` : ''}`;
+    info.append(name, desc, stats);
+
+    const action = document.createElement('div');
+    action.className = 'shopAction';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    if (equipped) {
+      btn.textContent = 'Equipped';
+      btn.disabled = true;
+    } else if (owned) {
+      btn.textContent = 'Equip';
+      btn.addEventListener('click', () => equipArmour(a.id));
+    } else {
+      btn.textContent = `Buy ${a.cost}g`;
+      btn.disabled = gold < a.cost;
+      btn.addEventListener('click', () => buyArmour(a.id));
+    }
+    action.appendChild(btn);
+    row.append(swatch, info, action);
+    shopList.appendChild(row);
+  }
+}
+
+function setShopTab(tab) {
+  shopTab = tab === 'armour' ? 'armour' : 'blades';
+  renderShop();
+}
+
+function buyArmour(id) {
+  const a = ARMOUR.find((x) => x.id === id);
+  if (!a || ownedArmour.has(id) || gold < a.cost) return;
+  gold -= a.cost;
+  ownedArmour.add(id);
+  equippedArmourId = id;
+  saveShop();
+  applyArmourVisuals();
+  refreshPlayerMaxStats(true);
+  renderShop();
+  ensureAudio();
+  playTone({ freq: 640, freq2: 960, dur: 0.2, type: 'triangle', gain: 0.05 });
+  setMessage(`Bought and equipped: ${a.name} (${Math.round(a.defense * 100)}% defence)`, 2);
+}
+function equipArmour(id) {
+  if (!ownedArmour.has(id)) return;
+  equippedArmourId = id;
+  saveShop();
+  applyArmourVisuals();
+  refreshPlayerMaxStats(false);
+  renderShop();
+  setMessage(`Equipped: ${equippedArmour().name} (${Math.round(armourDefence() * 100)}% defence)`, 1.4);
+}
+
 function buySword(id) {
   const s = SWORDS.find((x) => x.id === id);
   if (!s || ownedSwords.has(id) || gold < s.cost) return;
@@ -1696,10 +1852,7 @@ function equipSword(id) {
 function xpToNext(level) { return 100 + 60 * (level - 1); }
 function levelUp() {
   playerLevel++;
-  playerMaxHp = 100 + 10 * (playerLevel - 1);
-  playerMaxStamina = 100 + 4 * (playerLevel - 1);
-  playerHp = playerMaxHp;
-  playerStamina = playerMaxStamina;
+  refreshPlayerMaxStats(true);
   setMessage(`LEVEL ${playerLevel}! Max HP ${playerMaxHp} · Stamina ${playerMaxStamina} · +1 damage`, 3.2);
   ensureAudio();
   playTone({ freq: 520, freq2: 1040, dur: 0.35, type: 'triangle', gain: 0.06 });
@@ -1736,9 +1889,12 @@ function closeShop() {
 if (shopBtn) shopBtn.addEventListener('click', (e) => { e.preventDefault(); openShop(); });
 if (shopFromMenu) shopFromMenu.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openShop(); });
 if (shopClose) shopClose.addEventListener('click', (e) => { e.preventDefault(); closeShop(); });
+if (shopTabBlades) shopTabBlades.addEventListener('click', (e) => { e.preventDefault(); setShopTab('blades'); });
+if (shopTabArmour) shopTabArmour.addEventListener('click', (e) => { e.preventDefault(); setShopTab('armour'); });
 
 loadShop();
 applySwordVisuals();
+applyArmourVisuals();
 
 // ---- Good ending after the final boss ----
 function showEnding() {
@@ -2407,11 +2563,8 @@ let perfFrames = 0;
 let perfTime = 0;
 let perfChecked = false;
 
-// Apply saved level to player stats after declarations.
-playerMaxHp = 100 + 10 * (playerLevel - 1);
-playerMaxStamina = 100 + 4 * (playerLevel - 1);
-playerHp = playerMaxHp;
-playerStamina = playerMaxStamina;
+// Apply saved level and equipped armour to player stats after declarations.
+refreshPlayerMaxStats(true);
 
 // Simple synthesized audio (no external assets)
 let ambientSource = null;
@@ -3349,9 +3502,11 @@ function resolveEnemyHit(cfg, toEnemy, forward) {
     return;
   }
 
-  const dmg = (14 + Math.random() * 10) * (enemy.damage || 1) * cfg.dmg;
+  const raw = (14 + Math.random() * 10) * (enemy.damage || 1) * cfg.dmg;
+  const absorbed = raw * armourDefence();
+  const dmg = Math.max(1, raw - absorbed);
   playerHp = Math.max(0, playerHp - dmg);
-  setMessage(`Hit by ${cfg.name}! -${dmg.toFixed(0)}`, 0.7);
+  setMessage(`Hit by ${cfg.name}! -${dmg.toFixed(0)}${absorbed >= 0.5 ? ` (armour −${absorbed.toFixed(0)})` : ''}`, 0.7);
   sfxHit();
   const hitPos = new THREE.Vector3();
   camera.getWorldPosition(hitPos);
@@ -3399,7 +3554,7 @@ function updatePlayerMovement(dt) {
   updateLockOn();
   const baseSpeed = playerGuard ? 2.2 : 3.4;
   const staminaFactor = playerStamina < 20 ? 0.75 : 1.0;
-  const speed = baseSpeed * staminaFactor;
+  const speed = baseSpeed * staminaFactor * armourSpeedMult();
   const dirVec = new THREE.Vector3();
   camera.updateMatrixWorld();
   const forward = new THREE.Vector3(); camera.getWorldDirection(forward); forward.y = 0; if (forward.lengthSq() < 0.0001) forward.set(0,0,-1); forward.normalize();
@@ -3600,7 +3755,7 @@ function updateHUD() {
     return;
   }
   statusEl.innerHTML =
-    `${HERO_NAME} Lv.${playerLevel} <span class="muted">(XP ${playerXp}/${xpToNext(playerLevel)})</span>: <b>${playerHp.toFixed(0)}</b>/${playerMaxHp} &nbsp; Lives: <b>${hearts}</b> &nbsp; Stamina: <b>${stam.toFixed(0)}</b>/${playerMaxStamina} &nbsp; Sword: <b>+${swordBonus}</b> &nbsp; Gold: <b>${gold}</b><br>` +
+    `${HERO_NAME} Lv.${playerLevel} <span class="muted">(XP ${playerXp}/${xpToNext(playerLevel)})</span>: <b>${playerHp.toFixed(0)}</b>/${playerMaxHp} &nbsp; Lives: <b>${hearts}</b> &nbsp; Stamina: <b>${stam.toFixed(0)}</b>/${playerMaxStamina} &nbsp; Sword: <b>+${swordBonus}</b> &nbsp; Armour: <b>${Math.round(armourDefence() * 100)}%</b> &nbsp; Gold: <b>${gold}</b><br>` +
     `Boss ${bossIndex + 1}/${bosses.length} - ${enemy.finalBoss ? '<b>FINAL BOSS</b> · ' : (enemy.miniboss ? '<b>MINIBOSS</b> · ' : '')}${enemy.name} Lv.${enemy.level}: <b>${enemy.alive ? enemy.hp.toFixed(0) : 0}</b>/${enemy.maxHp} <span class="muted">· ${bosses[bossIndex].mapName || 'Arena'}</span><br>` +
     `<span class="muted">${over ? (playerHp <= 0 ? 'Press <b>R</b> to start over' : (bossIndex < bosses.length - 1 ? 'Press <b>N</b> for next boss, <b>R</b> to replay' : 'Press <b>R</b> to play again')) : (playerGuard ? 'Guarding (reduced stamina regen)' : 'Ready')}${!over && invulnTimer > 0 ? ' · recovering (brief invulnerability)' : ''}${!over && playerSwing.cooldown > 0 ? ' · recovering' : ''}${!over && enemy.guard && enemy.alive ? ' · enemy guarding' : ''}${!over && stam < 20 ? ' · exhausted' : ''}${!over && lockOn && enemy.alive ? ' · locked on (F)' : ''}${!over ? (controls.isLocked ? ' · mouse-locked' : (fallbackLook ? ' · free-look' : '')) : ''}</span>`;
 }
@@ -3804,7 +3959,7 @@ window.__game = {
   },
   view: () => ({ thirdPerson, avatarVisible: playerAvatar.visible, cam: camera.position.toArray(), yaw, pitch, swordVisible: playerSword.visible }),
   setView: (t) => { setView(!!t); return thirdPerson; },
-  shop: () => ({ gold, owned: [...ownedSwords], equipped: equippedSwordId, open: shopOpen }),
+  shop: () => ({ gold, owned: [...ownedSwords], equipped: equippedSwordId, ownedArmour: [...ownedArmour], equippedArmour: equippedArmourId, tab: shopTab, open: shopOpen }),
   openShop: () => { openShop(); return shopOpen; },
   closeShop: () => { closeShop(); return shopOpen; },
   mapInfo: () => {
@@ -3824,7 +3979,17 @@ if (Number.isFinite(qGold) && qGold > 0) {
   gold = qGold;
   saveShop();
 }
-if (qs.has('shop')) openShop();
+if (qs.has('shop')) {
+  if (qs.get('tab') === 'armour') setShopTab('armour');
+  openShop();
+}
+
+// Debug: exercise the armour shop (buy + equip + stat recalculation).
+if (qs.has('testarmour')) {
+  gold = 5000;
+  buyArmour('guardian');
+  setMessage(`ARMOUR TEST: ${equippedArmour().name} · maxHP ${playerMaxHp} · def ${Math.round(armourDefence() * 100)}% · gold ${gold}`, 8);
+}
 
 // Debug: jump straight into the bonus vault.
 if (qs.has('testbonus')) {
