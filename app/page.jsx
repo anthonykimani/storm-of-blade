@@ -32,6 +32,7 @@ export default function Home() {
             <div className="card"><h3>Physics clashes</h3><p>Blades meet with real collision, sparks, recoil, hit-stop and camera shake. Read the timing, break the guard.</p></div>
             <div className="card"><h3>First &amp; third person</h3><p>Switch view at any time with <kbd>V</kbd> or the on-screen button.</p></div>
             <div className="card"><h3>Training Grounds</h3><p>Practise on straw dummies and sharpen your blade: +2 damage every 4 hits, up to +30.</p></div>
+            <div className="card"><h3>Blades &amp; Armour</h3><p>Spend gold at the Armory: 11 swords and 9 armour sets. Plate reduces damage and raises HP and stamina.</p></div>
             <div className="card"><h3>Treasure Vault</h3><p>Win a duel and press <kbd>B</kbd> for a timed bonus round — slash golden orbs for an extra life.</p></div>
           </div>
         </section>
@@ -47,7 +48,7 @@ export default function Home() {
             <div className="ctrl"><span>Lock-on</span><span><kbd>F</kbd></span></div>
             <div className="ctrl"><span>Change view</span><span><kbd>V</kbd> or the button</span></div>
             <div className="ctrl"><span>Training / Bonus</span><span><kbd>T</kbd> / <kbd>B</kbd></span></div>
-            <div className="ctrl"><span>Shop</span><span><kbd>H</kbd></span></div>
+            <div className="ctrl"><span>Shop (blades &amp; armour)</span><span><kbd>H</kbd></span></div>
             <div className="ctrl"><span>Restart / Next boss</span><span><kbd>R</kbd> / <kbd>N</kbd></span></div>
             <div className="ctrl"><span>Performance mode</span><span><kbd>G</kbd></span></div>
             <div className="ctrl"><span>Mobile</span><span>Joystick + drag to look + buttons</span></div>
