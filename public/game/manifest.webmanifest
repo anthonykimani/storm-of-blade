@@ -1,6 +1,6 @@
 {
-  "name": "Crownfall: Arena Duel",
-  "short_name": "Crownfall",
+  "name": "Steel Requiem: Arena Duel",
+  "short_name": "Steel Requiem",
   "description": "First-person sword duels with physics-based clashes, 900 bosses and 5 arenas.",
   "start_url": "./index.html",
   "scope": "./",
