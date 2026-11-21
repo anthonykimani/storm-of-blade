@@ -1,7 +1,7 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Bladeborn: Arena Duel',
+  title: 'Crownfall: Arena Duel',
   description:
     'A first-person sword-fighting arena with physics-driven clashes, 900 champions, five arenas, and a giant final boss.',
   icons: {
@@ -10,7 +10,7 @@ export const metadata = {
     apple: '/icon-256.png',
   },
   openGraph: {
-    title: 'Bladeborn: Arena Duel',
+    title: 'Crownfall: Arena Duel',
     description:
       'Physics-driven sword duels, 900 bosses, five arenas, first and third person.',
     images: ['/icon-256.png'],

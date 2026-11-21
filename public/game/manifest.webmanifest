@@ -1,6 +1,6 @@
 {
-  "name": "Bladeborn: Arena Duel",
-  "short_name": "Bladeborn",
+  "name": "Crownfall: Arena Duel",
+  "short_name": "Crownfall",
   "description": "First-person sword duels with physics-based clashes, 900 bosses and 5 arenas.",
   "start_url": "./index.html",
   "scope": "./",

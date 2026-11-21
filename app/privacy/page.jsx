@@ -1,17 +1,17 @@
 export const metadata = {
-  title: 'Privacy — Bladeborn',
+  title: 'Privacy — Crownfall',
 };
 
 export default function Privacy() {
   return (
     <main className="wrap" style={{ padding: '60px 0 80px', maxWidth: 760 }}>
       <a className="back" href="/" style={{ display: 'inline-block', marginBottom: 24, textDecoration: 'none' }}>
-        ← Back to Bladeborn
+        ← Back to Crownfall
       </a>
       <h1 style={{ fontSize: 36, margin: '0 0 8px' }}>Privacy Policy</h1>
       <p style={{ color: '#7e8794', fontSize: 13 }}>Last updated: November 14, 2026</p>
 
-      <p>Bladeborn: Arena Duel is a browser game. This policy explains what information the game handles.</p>
+      <p>Crownfall: Arena Duel is a browser game. This policy explains what information the game handles.</p>
 
       <h2>Information we collect</h2>
       <p><strong>We do not collect personal information.</strong> There are no accounts, analytics, advertising trackers, or third-party tracking scripts in the game.</p>
