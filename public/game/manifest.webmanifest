@@ -1,6 +1,6 @@
 {
-  "name": "Clash of Steel: Arena Duel",
-  "short_name": "Clash of Steel",
+  "name": "Bladeborn: Arena Duel",
+  "short_name": "Bladeborn",
   "description": "First-person sword duels with physics-based clashes, 900 bosses and 5 arenas.",
   "start_url": "./index.html",
   "scope": "./",

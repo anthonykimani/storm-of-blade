@@ -5,7 +5,7 @@ export default function Home() {
         <div className="wrap nav-inner">
           <a className="brand" href="/">
             <img src="/icon-256.png" alt="" width="30" height="30" />
-            CLASH OF STEEL
+            BLADEBORN
           </a>
           <a className="btn small" href="/game/index.html">Play now</a>
         </div>
@@ -13,9 +13,9 @@ export default function Home() {
 
       <main className="wrap">
         <section className="hero">
-          <img className="hero-icon" src="/icon-256.png" alt="Clash of Steel icon" width="118" height="118" />
+          <img className="hero-icon" src="/icon-256.png" alt="Bladeborn icon" width="118" height="118" />
           <div className="kicker">Arena Duel</div>
-          <h1>Clash of <span>Steel</span></h1>
+          <h1>Blade<span>born</span></h1>
           <p className="tagline">
             A first-person sword-fighting arena. Physics-driven clashes, 900 champions,
             five arenas, and one crown.
@@ -60,14 +60,14 @@ export default function Home() {
           <div className="cta-panel">
             <h2>Ready to draw steel?</h2>
             <p>Step into the courtyard. The first champion is waiting.</p>
-            <a className="btn" href="/game/index.html">Play Clash of Steel</a>
+            <a className="btn" href="/game/index.html">Play Bladeborn</a>
           </div>
         </section>
       </main>
 
       <footer>
         <div className="wrap">
-          Clash of Steel: Arena Duel — a browser sword-fighting prototype. &nbsp;·&nbsp;{' '}
+          Bladeborn: Arena Duel — a browser sword-fighting prototype. &nbsp;·&nbsp;{' '}
           <a href="/privacy">Privacy</a>
         </div>
       </footer>
