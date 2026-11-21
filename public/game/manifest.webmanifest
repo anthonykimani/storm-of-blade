@@ -1,6 +1,6 @@
 {
-  "name": "Steel Requiem: Arena Duel",
-  "short_name": "Steel Requiem",
+  "name": "Storm of Blade: Arena Duel",
+  "short_name": "Storm of Blade",
   "description": "First-person sword duels with physics-based clashes, 900 bosses and 5 arenas.",
   "start_url": "./index.html",
   "scope": "./",
