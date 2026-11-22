@@ -34,7 +34,7 @@ export default function Home() {
             <div className="card"><h3>Training Grounds</h3><p>Practise on straw dummies and sharpen your blade: +2 damage every 4 hits, up to +30.</p></div>
             <div className="card"><h3>Blades &amp; Armour</h3><p>Spend gold at the Armory: 11 swords and 9 armour sets. Plate reduces damage and raises HP and stamina.</p></div>
             <div className="card"><h3>Arena events</h3><p>Blood moons, eclipses, thunderstorms, golden champions and treasure rain change the rules of the duel.</p></div>
-            <div className="card"><h3>Arena Forge</h3><p>Build your own arena from pillars, crates, walls and braziers. Save it in your browser or share it with a code.</p></div>
+            <div className="card"><h3>Arena Forge</h3><p>Build your own arena in 3D from pillars, crates, walls and braziers. Save it in your browser or share it with a code.</p></div>
             <div className="card"><h3>Treasure Vault</h3><p>Win a duel and press <kbd>B</kbd> for a timed bonus round — slash golden orbs for an extra life.</p></div>
           </div>
         </section>

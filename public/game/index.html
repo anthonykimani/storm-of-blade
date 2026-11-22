@@ -145,21 +145,12 @@
     #forgePanel button { margin-top: 0; }
     #forgeBody { display: flex; gap: 18px; padding: 16px 20px 20px; overflow: auto; }
     #forgeGridWrap { flex: 1 1 auto; min-width: 0; }
-    #forgeGrid { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; padding: 8px;
-      background: #0b0e12; border: 1px solid #333a44; border-radius: 12px; aspect-ratio: 1; max-height: 62vh; }
-    .forgeCell { margin: 0; padding: 0; aspect-ratio: 1; border-radius: 5px; border: 1px solid #252b33;
-      background: #151a20; color: #8f9aa8; font-size: clamp(10px, 1.5vw, 16px); line-height: 1;
-      display: flex; align-items: center; justify-content: center; cursor: crosshair; touch-action: none;
-      user-select: none; -webkit-user-select: none; }
-    .forgeCell:hover { border-color: #7f8b99; }
-    .forgeCell.spawn { background: #2a2418; border-color: #6a5625; color: #f0c75e; font-weight: 800; cursor: not-allowed; }
-    .forgeCell.t-pillar { background: #3c4754; color: #dbe6f2; }
-    .forgeCell.t-crate { background: #4a3524; color: #e8cda8; }
-    .forgeCell.t-barrel { background: #3f2c1e; color: #d9b98d; }
-    .forgeCell.t-wall { background: #2f3842; color: #c9d6e4; }
-    .forgeCell.t-brazier { background: #4a2a14; color: #ffc46a; }
-    .forgeCell.t-rubble { background: #2a2a30; color: #aab4c0; }
-    .forgeCell.t-bench { background: #3a3326; color: #d8c9a8; }
+    #forgeView { position: relative; aspect-ratio: 1; width: 100%; max-width: max(300px, 68vh); margin: 0 auto;
+      background: #0b0e12; border: 1px solid #333a44; border-radius: 12px; overflow: hidden; }
+    #forgeView canvas { display: block; width: 100% !important; height: 100% !important; touch-action: none; cursor: crosshair; }
+    #forgeBadge { position: absolute; left: 10px; bottom: 10px; padding: 5px 9px; border-radius: 7px;
+      background: rgba(10,12,16,0.72); color: #c9d1db; font-size: 11px; letter-spacing: 0.03em;
+      pointer-events: none; max-width: calc(100% - 20px); }
     .forgeHint { color: #8f9aa8; font-size: 12px; line-height: 1.5; margin-top: 8px; }
     #forgeSide { width: 320px; flex: 0 0 320px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
     .forgeLabel { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #d4a83e; margin-top: 6px; }
@@ -185,7 +176,6 @@
     @media (max-width: 780px) {
       #forgeBody { flex-direction: column; }
       #forgeSide { width: auto; flex: 1 1 auto; }
-      #forgeGrid { max-height: none; }
       #forgePanel { max-height: 96vh; }
     }
   </style>
@@ -250,8 +240,10 @@
       </div>
       <div id="forgeBody">
         <div id="forgeGridWrap">
-          <div id="forgeGrid" role="grid" aria-label="Arena map grid"></div>
-          <div class="forgeHint">Click or drag to place. Right-click to erase. <b>B</b> marks the boss spawn and <b>P</b> marks yours.</div>
+          <div id="forgeView" aria-label="3D arena editor">
+            <div id="forgeBadge">Drag to orbit &middot; Scroll or pinch to zoom &middot; Click to place &middot; Right-click to erase</div>
+          </div>
+          <div class="forgeHint">Click the ground to place. Drag to orbit, scroll to zoom. Red tile = boss spawn, blue = yours.</div>
         </div>
         <div id="forgeSide">
           <label class="forgeLabel" for="forgeName">Arena name</label>
@@ -271,6 +263,7 @@
             <button id="forgeSave" type="button">Save</button>
             <button id="forgePlay" type="button">Play arena</button>
             <button id="forgeNew" type="button" class="ghost">New</button>
+            <button id="forgeClear" type="button" class="ghost">Clear</button>
           </div>
           <div id="forgeStatus"></div>
           <div class="forgeLabel">Saved arenas</div>
@@ -356,7 +349,7 @@
         <li><b>Lives:</b> you start with <b>3 hearts</b>. Falling costs one life and restarts the duel; win to recover a heart (max 3). <b>R</b> restarts the current boss and refills lives.</li>
         <li><b>Bonus stage:</b> after winning a duel, press <b>B</b> to enter the Treasure Vault — slash <b>8 golden orbs</b> in 20 seconds for <b>+1 life</b> (or a full heal if lives are full).</li>
         <li><b>Training Grounds:</b> use the menu button or press <b>T</b> to practise against straw dummies — no lives at risk. Every <b>4 dummy hits</b> permanently sharpens your sword (<b>+2 damage</b>, max <b>+30</b>). Press <b>T</b>, <b>Esc</b>, or <b>Leave Training</b> to return.</li>
-        <li><b>Arena Forge:</b> open it from the story screen or menu to build a custom arena with pillars, crates, walls and braziers. Save up to 24 arenas, play them with the current boss, or share them as codes.</li>
+        <li><b>Arena Forge:</b> open it from the story screen or menu to build a custom arena in a live 3D preview. Orbit, zoom, place pillars, crates, walls and braziers, save up to 24 arenas, play them with the current boss, or share them as codes.</li>
         <li><b>Performance:</b> if the game feels slow, press <b>G</b> to toggle Performance mode (shadows off, lower resolution). It also enables automatically on slow devices.</li>
         <li><b>Mobile:</b> joystick to move, drag right side to look, buttons to fight (Guard raises shield).</li>
         <li>Pointer lock (mouse captured) is used automatically when available; otherwise free mouse-look is used.</li>
@@ -4486,24 +4479,26 @@ window.__game = {
 const FORGE_KEY = 'storm-of-blade-maps-v1';
 const FORGE_THEMES = ['courtyard', 'dungeon', 'garden', 'keep', 'temple', 'training'];
 const forgeOverlay = document.getElementById('forgeOverlay');
-const forgeGrid = document.getElementById('forgeGrid');
 const forgePalette = document.getElementById('forgePalette');
 const forgeListEl = document.getElementById('forgeList');
 const forgeStatusEl = document.getElementById('forgeStatus');
 const forgeNameInput = document.getElementById('forgeName');
 const forgeThemeSel = document.getElementById('forgeTheme');
 const forgeCodeInput = document.getElementById('forgeCode');
-const forgeTools = Object.keys(FORGE_TYPES).concat('erase');
 let forgeTool = 'pillar';
 let forgeEditingId = null;
 let forgeProps = new Map();
-let forgeCells = [];
-
-const forgeSpawnLabel = (gx, gz) => {
-  const key = `${gx},${gz}`;
-  if (key === `${FORGE_CENTER},${FORGE_CENTER}`) return 'B';
-  if (key === `${FORGE_CENTER},${FORGE_CENTER + 4}`) return 'P';
-  return '';
+let forge3d = null;
+let forgeRaf = 0;
+let forgeHover = { gx: -1, gz: -1 };
+const forgeGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const FORGE_LOOK = {
+  courtyard: { bg: 0x39424d, ground: 0x97896e, wall: 0x7c838c, ring: 0xacb6c0 },
+  dungeon: { bg: 0x241f1c, ground: 0x5a5248, wall: 0x3e3a37, ring: 0x9a6a44 },
+  garden: { bg: 0x1f2b38, ground: 0x6f8060, wall: 0x3f5a3a, ring: 0xaec8d8 },
+  keep: { bg: 0x35404a, ground: 0x83745c, wall: 0x5a4228, ring: 0xc09a58 },
+  temple: { bg: 0x17141a, ground: 0x4c444a, wall: 0x2a252c, ring: 0xa33a3a },
+  training: { bg: 0x4a5560, ground: 0x9a8a6a, wall: 0x8a9099, ring: 0xe6cf86 }
 };
 
 function forgeUid() {
@@ -4597,26 +4592,428 @@ function forgeDecode(code) {
   }
 }
 
-function renderForgeGrid() {
-  for (const btn of forgeCells) {
-    const gx = Number(btn.dataset.gx), gz = Number(btn.dataset.gz);
-    const key = `${gx},${gz}`;
-    const spawn = forgeSpawnLabel(gx, gz);
-    const prop = forgeProps.get(key);
-    btn.className = 'forgeCell';
-    if (spawn) {
-      btn.classList.add('spawn');
-      btn.textContent = spawn;
-      btn.setAttribute('aria-label', spawn === 'B' ? 'Boss spawn' : 'Player spawn');
-    } else if (prop) {
-      btn.classList.add('t-' + prop);
-      btn.textContent = FORGE_TYPES[prop].symbol;
-      btn.setAttribute('aria-label', FORGE_TYPES[prop].label);
-    } else {
-      btn.textContent = '';
-      btn.setAttribute('aria-label', 'Empty');
+function forgeMat(color, opts = {}) {
+  return new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.9, metalness: 0.05 }, opts));
+}
+
+function forgeDisposeObject(obj) {
+  obj.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach((m) => { m.map?.dispose?.(); m.dispose?.(); });
     }
+  });
+}
+
+function forgeClearGroup(group) {
+  while (group.children.length) {
+    const child = group.children[0];
+    group.remove(child);
+    forgeDisposeObject(child);
   }
+}
+
+function forgeMakeLabel(text, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 96;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'rgba(8,10,14,0.78)';
+  ctx.fillRect(26, 18, 204, 60);
+  ctx.font = 'bold 42px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.fillText(text, 128, 49);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sprite.scale.set(2.4, 0.9, 1);
+  return sprite;
+}
+
+function forgeAddSpawnMarker(group, x, z, color, text) {
+  const tile = new THREE.Mesh(
+    new THREE.PlaneGeometry(FORGE_STEP * 0.9, FORGE_STEP * 0.9),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false })
+  );
+  tile.rotation.x = -Math.PI / 2;
+  tile.position.set(x, 0.03, z);
+  group.add(tile);
+  const label = forgeMakeLabel(text, '#' + new THREE.Color(color).getHexString());
+  label.position.set(x, 0.85, z);
+  group.add(label);
+}
+
+function forgeApplyTheme() {
+  if (!forge3d) return;
+  const look = FORGE_LOOK[forgeThemeSel.value] || FORGE_LOOK.courtyard;
+  forge3d.theme = look;
+  forge3d.scene.background = new THREE.Color(look.bg);
+  forge3d.scene.fog = new THREE.Fog(look.bg, 28, 62);
+  const tg = forge3d.themeGroup;
+  forgeClearGroup(tg);
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(12.4, 64),
+    forgeMat(look.ground, { roughness: 0.96 })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.receiveShadow = true;
+  tg.add(ground);
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(7.9, 8.15, 64),
+    new THREE.MeshBasicMaterial({ color: look.ring, side: THREE.DoubleSide })
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.015;
+  tg.add(ring);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(6.2, 2.2, 0.8), forgeMat(look.wall, { roughness: 0.96 }));
+    wall.position.set(Math.cos(a) * 12.5, 1.1, Math.sin(a) * 12.5);
+    wall.rotation.y = -a;
+    wall.castShadow = true;
+    wall.receiveShadow = true;
+    tg.add(wall);
+  }
+  forgeAddSpawnMarker(tg, 0, 0, 0x9b2233, 'BOSS');
+  forgeAddSpawnMarker(tg, 0, FORGE_STEP * 4, 0x2e6f8a, 'YOU');
+}
+
+function forgeBuildProp(t) {
+  const g = new THREE.Group();
+  if (t === 'pillar') {
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 3.0, 0.9), forgeMat(0x8a9099, { roughness: 0.95 }));
+    base.position.y = 1.5;
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.25, 1.2), forgeMat(0x9aa1aa, { roughness: 0.9 }));
+    cap.position.y = 3.12;
+    g.add(base, cap);
+  } else if (t === 'crate') {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.25, 1.25), forgeMat(0x6a4b2f, { roughness: 0.95 }));
+    m.position.y = 0.625;
+    g.add(m);
+  } else if (t === 'barrel') {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 1.1, 12), forgeMat(0x5a4028, { roughness: 0.95 }));
+    m.position.y = 0.55;
+    g.add(m);
+  } else if (t === 'wall') {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.05, 0.55), forgeMat(0x6f7a86, { roughness: 0.96 }));
+    m.position.y = 0.525;
+    g.add(m);
+  } else if (t === 'brazier') {
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.95, 10), forgeMat(0x4a3a2a, { roughness: 0.9 }));
+    pedestal.position.y = 0.475;
+    const ember = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffa64d }));
+    ember.position.y = 1.05;
+    g.add(pedestal, ember);
+  } else if (t === 'rubble') {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.55, 1.25), forgeMat(0x4a4650, { roughness: 1 }));
+    m.position.y = 0.275;
+    m.rotation.y = 0.35;
+    g.add(m);
+  } else if (t === 'bench') {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.5, 0.55), forgeMat(0x4a3724, { roughness: 0.9 }));
+    m.position.y = 0.25;
+    g.add(m);
+  }
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    o.receiveShadow = true;
+  });
+  return g;
+}
+
+function forgeRebuildProps() {
+  if (!forge3d) return;
+  const pg = forge3d.propGroup;
+  forgeClearGroup(pg);
+  for (const [key, t] of forgeProps.entries()) {
+    const [gx, gz] = key.split(',').map(Number);
+    const [x, z] = forgeWorldPos(gx, gz);
+    const prop = forgeBuildProp(t);
+    prop.position.set(x, 0, z);
+    prop.userData.cellKey = key;
+    prop.traverse((o) => { o.userData.cellKey = key; });
+    pg.add(prop);
+  }
+  forgeRender();
+}
+
+function forgeUpdateCamera() {
+  if (!forge3d) return;
+  const { camera, orbit } = forge3d;
+  const cp = Math.cos(orbit.pitch);
+  camera.position.set(
+    orbit.target.x + Math.sin(orbit.yaw) * cp * orbit.dist,
+    orbit.target.y + Math.sin(orbit.pitch) * orbit.dist,
+    orbit.target.z + Math.cos(orbit.yaw) * cp * orbit.dist
+  );
+  camera.lookAt(orbit.target);
+}
+
+function forgeRender() {
+  if (!forge3d) return;
+  forge3d.renderer.render(forge3d.scene, forge3d.camera);
+}
+
+function forgeResize3D() {
+  if (!forge3d) return;
+  const host = forge3d.host;
+  const w = Math.max(1, host.clientWidth);
+  const h = Math.max(1, host.clientHeight);
+  forge3d.renderer.setSize(w, h, false);
+  forge3d.camera.aspect = w / h;
+  forge3d.camera.updateProjectionMatrix();
+  forgeRender();
+}
+
+function forgeStartLoop() {
+  if (!forge3d || forgeRaf) return;
+  const tick = () => {
+    if (!forgeOverlay.classList.contains('open')) { forgeRaf = 0; return; }
+    forgeRender();
+    forgeRaf = requestAnimationFrame(tick);
+  };
+  forgeRaf = requestAnimationFrame(tick);
+}
+
+function forgeStopLoop() {
+  if (forgeRaf) cancelAnimationFrame(forgeRaf);
+  forgeRaf = 0;
+}
+
+function forgeInit3D() {
+  if (forge3d) { forgeResize3D(); return forge3d; }
+  const host = document.getElementById('forgeView');
+  if (!host) return null;
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+  } catch (err) {
+    host.insertAdjacentHTML('beforeend', '<div class="forgeHint" style="padding:16px">3D view is unavailable in this browser. Try another browser or enable WebGL.</div>');
+    return null;
+  }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  host.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 140);
+  const hemi = new THREE.HemisphereLight(0xe8f0fa, 0x4a4e40, 1.2);
+  scene.add(hemi);
+  const key = new THREE.DirectionalLight(0xfff1d6, 2.0);
+  key.position.set(9, 15, 7);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.left = -14;
+  key.shadow.camera.right = 14;
+  key.shadow.camera.top = 14;
+  key.shadow.camera.bottom = -14;
+  key.shadow.camera.near = 0.5;
+  key.shadow.camera.far = 45;
+  key.shadow.bias = -0.0015;
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x9db8d6, 0.55);
+  fill.position.set(-11, 9, -9);
+  scene.add(fill);
+
+  const world = new THREE.Group();
+  scene.add(world);
+  const themeGroup = new THREE.Group();
+  const propGroup = new THREE.Group();
+  world.add(themeGroup, propGroup);
+
+  const grid = new THREE.GridHelper(FORGE_GRID * FORGE_STEP, FORGE_GRID, 0xc9a04a, 0x46505c);
+  grid.position.y = 0.02;
+  grid.material.opacity = 0.5;
+  grid.material.transparent = true;
+  world.add(grid);
+
+  const hoverTile = new THREE.Mesh(
+    new THREE.PlaneGeometry(FORGE_STEP * 0.92, FORGE_STEP * 0.92),
+    new THREE.MeshBasicMaterial({ color: 0x7fe0a8, transparent: true, opacity: 0.35, depthWrite: false })
+  );
+  hoverTile.rotation.x = -Math.PI / 2;
+  hoverTile.position.y = 0.035;
+  hoverTile.visible = false;
+  world.add(hoverTile);
+
+  forge3d = {
+    host, renderer, scene, camera, themeGroup, propGroup, hoverTile,
+    orbit: { yaw: Math.PI * 0.25, pitch: 0.92, dist: 22, target: new THREE.Vector3(0, 0.8, 0) },
+    raycaster: new THREE.Raycaster(),
+    pointer: new THREE.Vector2(),
+    theme: null
+  };
+  forgeBind3D();
+  forgeApplyTheme();
+  forgeUpdateCamera();
+  forgeResize3D();
+  return forge3d;
+}
+
+function forgeCellFromEvent(e) {
+  if (!forge3d) return null;
+  const rect = forge3d.renderer.domElement.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  forge3d.pointer.set(
+    ((e.clientX - rect.left) / rect.width) * 2 - 1,
+    -((e.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  forge3d.raycaster.setFromCamera(forge3d.pointer, forge3d.camera);
+  const hit = new THREE.Vector3();
+  if (!forge3d.raycaster.ray.intersectPlane(forgeGroundPlane, hit)) return null;
+  const gx = Math.round(hit.x / FORGE_STEP + FORGE_CENTER);
+  const gz = Math.round(hit.z / FORGE_STEP + FORGE_CENTER);
+  if (gx < 0 || gz < 0 || gx >= FORGE_GRID || gz >= FORGE_GRID) return null;
+  return { gx, gz };
+}
+
+function forgePropKeyFromEvent(e) {
+  if (!forge3d) return null;
+  const hits = forge3d.raycaster.intersectObjects(forge3d.propGroup.children, true);
+  if (!hits.length) return null;
+  let obj = hits[0].object;
+  while (obj && !obj.userData.cellKey) obj = obj.parent;
+  return obj ? obj.userData.cellKey : null;
+}
+
+function forgeSyncHover(e) {
+  const cell = forgeCellFromEvent(e);
+  forgeHover = cell ? { gx: cell.gx, gz: cell.gz } : { gx: -1, gz: -1 };
+  return cell;
+}
+
+function forgeUpdateHover() {
+  if (!forge3d) return;
+  const tile = forge3d.hoverTile;
+  if (forgeHover.gx < 0) {
+    tile.visible = false;
+    forgeRender();
+    return;
+  }
+  const key = `${forgeHover.gx},${forgeHover.gz}`;
+  const [x, z] = forgeWorldPos(forgeHover.gx, forgeHover.gz);
+  tile.position.set(x, 0.035, z);
+  tile.visible = true;
+  if (FORGE_SPAWNS.has(key)) tile.material.color.setHex(0xff5a4a);
+  else if (forgeTool === 'erase') tile.material.color.setHex(0xffb35a);
+  else tile.material.color.setHex(forgeProps.has(key) ? 0xffd36a : 0x7fe0a8);
+  forgeRender();
+}
+
+function forgeRemoveKey(key) {
+  if (!forgeProps.delete(key)) return;
+  forgeRebuildProps();
+  forgeUpdateHover();
+}
+
+function forgePlaceAtPointer(e) {
+  forgeSyncHover(e);
+  if (forgeTool === 'erase') {
+    const key = forgePropKeyFromEvent(e) || (forgeHover.gx >= 0 ? `${forgeHover.gx},${forgeHover.gz}` : null);
+    if (key) forgeRemoveKey(key);
+    return;
+  }
+  const existing = forgePropKeyFromEvent(e);
+  if (existing) {
+    forgeProps.set(existing, forgeTool);
+    forgeRebuildProps();
+    forgeUpdateHover();
+    return;
+  }
+  if (forgeHover.gx >= 0) paintForgeCell(forgeHover.gx, forgeHover.gz, false);
+}
+
+function forgeEraseAtPointer(e) {
+  forgeSyncHover(e);
+  const key = forgePropKeyFromEvent(e) || (forgeHover.gx >= 0 ? `${forgeHover.gx},${forgeHover.gz}` : null);
+  if (key) forgeRemoveKey(key);
+}
+
+function forgeBind3D() {
+  const el = forge3d.renderer.domElement;
+  const active = new Map();
+  let down = null;
+  let pinch = null;
+  el.addEventListener('contextmenu', (e) => e.preventDefault());
+  el.addEventListener('pointerdown', (e) => {
+    try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (active.size === 2) {
+      const [a, b] = [...active.values()];
+      pinch = {
+        start: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+        dist: forge3d.orbit.dist
+      };
+      down = null;
+      return;
+    }
+    down = { x: e.clientX, y: e.clientY, moved: false, button: e.button };
+  });
+  el.addEventListener('pointermove', (e) => {
+    if (active.has(e.pointerId)) active.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && active.size >= 2) {
+      const [a, b] = [...active.values()];
+      const spread = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
+      forge3d.orbit.dist = THREE.MathUtils.clamp(pinch.dist * (pinch.start / spread), 9, 32);
+      forgeUpdateCamera();
+      forgeRender();
+      return;
+    }
+    if (down) {
+      const dx = e.clientX - down.x;
+      const dy = e.clientY - down.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) down.moved = true;
+      if (down.moved) {
+        forge3d.orbit.yaw -= dx * 0.008;
+        forge3d.orbit.pitch = THREE.MathUtils.clamp(forge3d.orbit.pitch - dy * 0.006, 0.35, 1.45);
+        down.x = e.clientX;
+        down.y = e.clientY;
+        forgeUpdateCamera();
+        forgeRender();
+      }
+    }
+    forgeSyncHover(e);
+    forgeUpdateHover();
+  });
+  el.addEventListener('pointerup', (e) => {
+    active.delete(e.pointerId);
+    if (pinch) {
+      if (active.size < 2) pinch = null;
+      down = null;
+      return;
+    }
+    const wasClick = down && !down.moved;
+    down = null;
+    if (!wasClick) return;
+    if (e.button === 2) forgeEraseAtPointer(e);
+    else forgePlaceAtPointer(e);
+  });
+  el.addEventListener('pointercancel', (e) => {
+    active.delete(e.pointerId);
+    pinch = null;
+    down = null;
+  });
+  el.addEventListener('pointerleave', () => {
+    if (down) return;
+    forgeHover = { gx: -1, gz: -1 };
+    forgeUpdateHover();
+  });
+  el.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    forge3d.orbit.dist = THREE.MathUtils.clamp(forge3d.orbit.dist + Math.sign(e.deltaY) * 1.4, 9, 32);
+    forgeUpdateCamera();
+    forgeRender();
+  }, { passive: false });
+  window.addEventListener('resize', () => {
+    if (forgeOverlay.classList.contains('open')) forgeResize3D();
+  });
 }
 
 function renderForgePalette() {
@@ -4685,31 +5082,6 @@ function renderForgeList() {
   }
 }
 
-function buildForgeGrid() {
-  if (!forgeGrid || forgeCells.length) return;
-  for (let gz = 0; gz < FORGE_GRID; gz++) {
-    for (let gx = 0; gx < FORGE_GRID; gx++) {
-      const cell = document.createElement('button');
-      cell.type = 'button';
-      cell.className = 'forgeCell';
-      cell.dataset.gx = String(gx);
-      cell.dataset.gz = String(gz);
-      cell.setAttribute('role', 'gridcell');
-      cell.addEventListener('contextmenu', (e) => e.preventDefault());
-      cell.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
-        paintForgeCell(gx, gz, e.button === 2 || e.shiftKey);
-      });
-      cell.addEventListener('pointerenter', (e) => {
-        if (e.buttons === 1) paintForgeCell(gx, gz, false);
-        else if (e.buttons === 2) paintForgeCell(gx, gz, true);
-      });
-      forgeGrid.appendChild(cell);
-      forgeCells.push(cell);
-    }
-  }
-}
-
 function paintForgeCell(gx, gz, erase) {
   const key = `${gx},${gz}`;
   if (FORGE_SPAWNS.has(key)) {
@@ -4721,7 +5093,8 @@ function paintForgeCell(gx, gz, erase) {
   } else {
     forgeProps.set(key, forgeTool);
   }
-  renderForgeGrid();
+  forgeRebuildProps();
+  forgeUpdateHover();
 }
 
 function editForgeMap(map) {
@@ -4731,13 +5104,24 @@ function editForgeMap(map) {
   forgeNameInput.value = safe.name;
   forgeThemeSel.value = safe.theme;
   forgeProps = new Map(safe.props.map((p) => [`${p.x},${p.z}`, p.t]));
-  renderForgeGrid();
+  if (forge3d) {
+    forgeApplyTheme();
+    forgeRebuildProps();
+    forgeUpdateHover();
+  }
   forgeStatus(`Editing "${safe.name}".`);
 }
 
 function renderForgeAll() {
-  buildForgeGrid();
-  renderForgeGrid();
+  forgeInit3D();
+  if (forge3d) {
+    forgeApplyTheme();
+    forgeRebuildProps();
+    forgeUpdateHover();
+    forgeResize3D();
+    forgeUpdateCamera();
+    forgeStartLoop();
+  }
   renderForgePalette();
   renderForgeList();
 }
@@ -4750,12 +5134,13 @@ function openForge() {
   overlay.style.display = 'none';
   forgeOverlay.classList.add('open');
   renderForgeAll();
-  forgeStatus('Pick a prop, then click the grid to build.');
+  forgeStatus('Pick a prop, then click the ground to build.');
 }
 
 function closeForge() {
   if (!forgeOverlay) return;
   forgeOverlay.classList.remove('open');
+  forgeStopLoop();
   const inDuel = controls.isLocked || (fallbackLook && fallbackActive && overlay.style.display === 'none');
   if (!inDuel) {
     overlay.style.display = 'flex';
@@ -4820,8 +5205,30 @@ if (document.getElementById('forgeNew')) {
     forgeProps = new Map();
     forgeNameInput.value = 'My Arena';
     forgeThemeSel.value = 'courtyard';
-    renderForgeGrid();
+    if (forge3d) {
+      forgeApplyTheme();
+      forgeRebuildProps();
+      forgeUpdateHover();
+    }
     forgeStatus('New arena started.');
+  });
+}
+if (document.getElementById('forgeClear')) {
+  document.getElementById('forgeClear').addEventListener('click', (e) => {
+    e.preventDefault();
+    forgeProps.clear();
+    if (forge3d) {
+      forgeRebuildProps();
+      forgeUpdateHover();
+    }
+    forgeStatus('All props cleared.');
+  });
+}
+if (forgeThemeSel) {
+  forgeThemeSel.addEventListener('change', () => {
+    if (!forge3d) return;
+    forgeApplyTheme();
+    forgeRender();
   });
 }
 if (document.getElementById('forgeStandard')) {
@@ -4911,7 +5318,7 @@ if (qs.has('testforgeui')) {
   const listed = forgeMaps().some((m) => m.name === 'UI Test' && m.props.length === 3);
   forgeCodeInput.value = forgeEncode(saved);
   document.getElementById('forgeImport').click();
-  setMessage(`FORGE UI TEST saved=${!!saved} listed=${listed} props=${saved.props.length} painted=${forgeProps.size} grid=${forgeCells.length} palette=${forgePalette.children.length}`, 20);
+  setMessage(`FORGE UI TEST saved=${!!saved} listed=${listed} props=${saved.props.length} painted=${forgeProps.size} tiles=${FORGE_GRID * FORGE_GRID} palette=${forgePalette.children.length} canvas=${!!document.querySelector('#forgeView canvas')}`, 20);
 }
 if (qs.has('testforgeplay')) {
   openForge();
@@ -4925,6 +5332,55 @@ if (qs.has('testforgeplay')) {
   mapGroup.traverse((o) => { if (o.isMesh) meshes++; });
   document.body.dataset.forgeTest = `custom=${customArena ? customArena.name : 'none'} theme=${currentMapTheme} props=${customArena ? customArena.props.length : 0} meshes=${meshes} boss=${enemy.name}`;
   setMessage(`FORGE PLAY TEST ${document.body.dataset.forgeTest}`, 20);
+}
+if (qs.has('testforgeclick')) {
+  openForge();
+  const el = forge3d.renderer.domElement;
+  const rect = el.getBoundingClientRect();
+  const projectCell = (gx, gz) => {
+    const [wx, wz] = forgeWorldPos(gx, gz);
+    const v = new THREE.Vector3(wx, 0, wz).project(forge3d.camera);
+    return {
+      x: rect.left + (v.x * 0.5 + 0.5) * rect.width,
+      y: rect.top + (-v.y * 0.5 + 0.5) * rect.height
+    };
+  };
+  const fire = (type, p, button, buttons, pointerId) => {
+    el.dispatchEvent(new PointerEvent(type, {
+      clientX: p.x, clientY: p.y, button, buttons, pointerId, bubbles: true
+    }));
+  };
+  forgeTool = 'crate';
+  const place = projectCell(2, 2);
+  fire('pointerdown', place, 0, 1, 1);
+  fire('pointermove', place, 0, 1, 1);
+  fire('pointerup', place, 0, 0, 1);
+  const placedKey = [...forgeProps.keys()][0] || '';
+  const yaw0 = forge3d.orbit.yaw;
+  const mid = { x: rect.left + rect.width * 0.5, y: rect.top + rect.height * 0.5 };
+  fire('pointerdown', mid, 0, 1, 2);
+  fire('pointermove', { x: mid.x + 50, y: mid.y }, 0, 1, 2);
+  fire('pointerup', { x: mid.x + 50, y: mid.y }, 0, 0, 2);
+  const orbited = Math.abs(forge3d.orbit.yaw - yaw0) > 0.05;
+  let removed = false;
+  if (placedKey) {
+    const [egx, egz] = placedKey.split(',').map(Number);
+    const p = projectCell(egx, egz);
+    fire('pointerdown', p, 2, 2, 3);
+    fire('pointerup', p, 2, 0, 3);
+    removed = !forgeProps.has(placedKey);
+  }
+  document.body.dataset.forgeClick = `placed=${placedKey || 'none'} orbit=${orbited} removed=${removed} props=${forgeProps.size}`;
+  setMessage(`FORGE CLICK TEST ${document.body.dataset.forgeClick}`, 20);
+}
+if (qs.has('testforgelayout')) {
+  openForge();
+  const box = (sel) => {
+    const r = document.querySelector(sel).getBoundingClientRect();
+    return `${Math.round(r.width)}x${Math.round(r.height)}`;
+  };
+  document.body.dataset.forgeLayout = `win=${window.innerWidth}x${window.innerHeight} panel=${box('#forgePanel')} body=${box('#forgeBody')} view=${box('#forgeView')} side=${box('#forgeSide')} doc=${document.documentElement.scrollWidth}`;
+  setMessage(`FORGE LAYOUT ${document.body.dataset.forgeLayout}`, 20);
 }
 
 // Debug: exercise event spawning, pickups and modifiers.
