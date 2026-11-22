@@ -132,6 +132,62 @@
       #panel { padding: 18px; }
       h1 { font-size: 24px; }
     }
+    /* ---- Arena Forge ---- */
+    #forgeOverlay { position: fixed; inset: 0; z-index: 35; display: none; align-items: center; justify-content: center;
+      background: rgba(5,6,8,0.88); backdrop-filter: blur(4px); color: #eef1f5; }
+    #forgeOverlay.open { display: flex; }
+    #forgePanel { width: min(1020px, calc(100vw - 22px)); max-height: 94vh; display: flex; flex-direction: column;
+      background: linear-gradient(180deg, #1b2028, #12151a); border: 1px solid #4a3f2a; border-radius: 16px;
+      box-shadow: 0 30px 90px rgba(0,0,0,0.75); overflow: hidden; }
+    #forgeHeader { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07); }
+    #forgeHeader h2 { margin: 0; font-size: 21px; }
+    #forgePanel button { margin-top: 0; }
+    #forgeBody { display: flex; gap: 18px; padding: 16px 20px 20px; overflow: auto; }
+    #forgeGridWrap { flex: 1 1 auto; min-width: 0; }
+    #forgeGrid { display: grid; grid-template-columns: repeat(11, 1fr); gap: 4px; padding: 8px;
+      background: #0b0e12; border: 1px solid #333a44; border-radius: 12px; aspect-ratio: 1; max-height: 62vh; }
+    .forgeCell { margin: 0; padding: 0; aspect-ratio: 1; border-radius: 5px; border: 1px solid #252b33;
+      background: #151a20; color: #8f9aa8; font-size: clamp(10px, 1.5vw, 16px); line-height: 1;
+      display: flex; align-items: center; justify-content: center; cursor: crosshair; touch-action: none;
+      user-select: none; -webkit-user-select: none; }
+    .forgeCell:hover { border-color: #7f8b99; }
+    .forgeCell.spawn { background: #2a2418; border-color: #6a5625; color: #f0c75e; font-weight: 800; cursor: not-allowed; }
+    .forgeCell.t-pillar { background: #3c4754; color: #dbe6f2; }
+    .forgeCell.t-crate { background: #4a3524; color: #e8cda8; }
+    .forgeCell.t-barrel { background: #3f2c1e; color: #d9b98d; }
+    .forgeCell.t-wall { background: #2f3842; color: #c9d6e4; }
+    .forgeCell.t-brazier { background: #4a2a14; color: #ffc46a; }
+    .forgeCell.t-rubble { background: #2a2a30; color: #aab4c0; }
+    .forgeCell.t-bench { background: #3a3326; color: #d8c9a8; }
+    .forgeHint { color: #8f9aa8; font-size: 12px; line-height: 1.5; margin-top: 8px; }
+    #forgeSide { width: 320px; flex: 0 0 320px; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+    .forgeLabel { font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #d4a83e; margin-top: 6px; }
+    #forgeName, #forgeTheme, #forgeCode { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px;
+      border: 1px solid #3a424d; background: #0f1318; color: #eef1f5; font-size: 13px; }
+    #forgePalette { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    #forgePalette button { padding: 8px 4px; font-size: 12px; border-radius: 8px; border: 1px solid #3a424d;
+      background: #151a20; color: #c9d1db; cursor: pointer; }
+    #forgePalette button.active { border-color: #b08b30; background: #2a2418; color: #f0c75e; }
+    .forgeActions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .forgeActions button { padding: 8px 12px; font-size: 12.5px; border-radius: 8px; cursor: pointer;
+      border: 1px solid #5d5340; background: #2a2418; color: #f0c75e; }
+    .forgeActions button.ghost { border-color: #3a424d; background: #151a20; color: #c9d1db; }
+    #forgeStatus { font-size: 12px; min-height: 16px; color: #9fb0c2; }
+    #forgeList { display: flex; flex-direction: column; gap: 6px; max-height: 152px; overflow: auto; }
+    .forgeSaved { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid #333a44;
+      border-radius: 8px; background: rgba(28,33,41,0.9); font-size: 12.5px; }
+    .forgeSaved .forgeSavedName { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .forgeSaved .forgeSavedMeta { color: #8f9aa8; font-size: 11px; }
+    .forgeSaved button { padding: 4px 7px; font-size: 11px; border-radius: 6px; border: 1px solid #3a424d;
+      background: #151a20; color: #c9d1db; cursor: pointer; }
+    .forgeEmpty { color: #8f9aa8; font-size: 12px; font-style: italic; }
+    @media (max-width: 780px) {
+      #forgeBody { flex-direction: column; }
+      #forgeSide { width: auto; flex: 1 1 auto; }
+      #forgeGrid { max-height: none; }
+      #forgePanel { max-height: 96vh; }
+    }
   </style>
   <script type="importmap">
     {
@@ -176,8 +232,58 @@
       <div id="storyFooter">
         <span id="storyPage" class="muted"></span>
         <div id="storyButtons">
+          <button id="storyForge" type="button" class="ghost">Arena Forge</button>
           <button id="storySkip" type="button" class="ghost">Skip intro</button>
           <button id="storyBtn" type="button">Continue</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="forgeOverlay">
+    <div id="forgePanel">
+      <div id="forgeHeader">
+        <div>
+          <div class="shopKicker">ARENA FORGE</div>
+          <h2>Build your own arena</h2>
+        </div>
+        <button id="forgeClose" type="button" class="ghost">Close</button>
+      </div>
+      <div id="forgeBody">
+        <div id="forgeGridWrap">
+          <div id="forgeGrid" role="grid" aria-label="Arena map grid"></div>
+          <div class="forgeHint">Click or drag to place. Right-click to erase. <b>B</b> marks the boss spawn and <b>P</b> marks yours.</div>
+        </div>
+        <div id="forgeSide">
+          <label class="forgeLabel" for="forgeName">Arena name</label>
+          <input id="forgeName" maxlength="28" value="My Arena" />
+          <label class="forgeLabel" for="forgeTheme">Theme</label>
+          <select id="forgeTheme">
+            <option value="courtyard">Stone Courtyard</option>
+            <option value="dungeon">Iron Dungeon</option>
+            <option value="garden">Moonlit Garden</option>
+            <option value="keep">Mountain Keep</option>
+            <option value="temple">Shadow Temple</option>
+            <option value="training">Training Yard</option>
+          </select>
+          <div class="forgeLabel">Props</div>
+          <div id="forgePalette"></div>
+          <div class="forgeActions">
+            <button id="forgeSave" type="button">Save</button>
+            <button id="forgePlay" type="button">Play arena</button>
+            <button id="forgeNew" type="button" class="ghost">New</button>
+          </div>
+          <div id="forgeStatus"></div>
+          <div class="forgeLabel">Saved arenas</div>
+          <div id="forgeList"></div>
+          <div class="forgeActions">
+            <button id="forgeStandard" type="button" class="ghost">Use standard arenas</button>
+          </div>
+          <label class="forgeLabel" for="forgeCode">Share code</label>
+          <div class="forgeActions">
+            <input id="forgeCode" placeholder="Paste a code here" />
+            <button id="forgeImport" type="button" class="ghost">Import</button>
+            <button id="forgeExport" type="button" class="ghost">Export</button>
+          </div>
         </div>
       </div>
     </div>
@@ -250,6 +356,7 @@
         <li><b>Lives:</b> you start with <b>3 hearts</b>. Falling costs one life and restarts the duel; win to recover a heart (max 3). <b>R</b> restarts the current boss and refills lives.</li>
         <li><b>Bonus stage:</b> after winning a duel, press <b>B</b> to enter the Treasure Vault — slash <b>8 golden orbs</b> in 20 seconds for <b>+1 life</b> (or a full heal if lives are full).</li>
         <li><b>Training Grounds:</b> use the menu button or press <b>T</b> to practise against straw dummies — no lives at risk. Every <b>4 dummy hits</b> permanently sharpens your sword (<b>+2 damage</b>, max <b>+30</b>). Press <b>T</b>, <b>Esc</b>, or <b>Leave Training</b> to return.</li>
+        <li><b>Arena Forge:</b> open it from the story screen or menu to build a custom arena with pillars, crates, walls and braziers. Save up to 24 arenas, play them with the current boss, or share them as codes.</li>
         <li><b>Performance:</b> if the game feels slow, press <b>G</b> to toggle Performance mode (shadows off, lower resolution). It also enables automatically on slow devices.</li>
         <li><b>Mobile:</b> joystick to move, drag right side to look, buttons to fight (Guard raises shield).</li>
         <li>Pointer lock (mouse captured) is used automatically when available; otherwise free mouse-look is used.</li>
@@ -258,6 +365,7 @@
         <button id="start" type="button">Enter Arena</button>
         <button id="train" type="button" class="ghost">Training Grounds</button>
         <button id="shopFromMenu" type="button" class="ghost">Blade Shop</button>
+        <button id="forgeFromMenu" type="button" class="ghost">Arena Forge</button>
       </div>
       <div id="startHint" class="muted" style="margin-top:10px">Tip: for best results run via a local web server. Mobile works with on-screen controls.</div>
     </div>
@@ -950,6 +1058,53 @@ function buildMap(theme) {
   const banners = bannerColors[theme] || [0x888888, 0x888888];
   addBanner(-7, -9.8, banners[0]);
   addBanner(7, -9.8, banners[1]);
+
+  if (customArena && theme !== 'training' && theme !== 'vault') {
+    drawCustomArenaProps(customArena);
+  }
+}
+
+// ---- Arena Forge: player-built arenas ----
+// Grid is 11x11 with a 1.6 m step, so every prop stays inside the arena walls.
+const FORGE_GRID = 11;
+const FORGE_STEP = 1.6;
+const FORGE_CENTER = Math.floor(FORGE_GRID / 2);
+const FORGE_SPAWNS = new Set([`${FORGE_CENTER},${FORGE_CENTER}`, `${FORGE_CENTER},${FORGE_CENTER + 4}`]);
+const FORGE_TYPES = {
+  pillar: { symbol: '▮', label: 'Pillar' },
+  crate: { symbol: '▣', label: 'Crate' },
+  barrel: { symbol: '◍', label: 'Barrel' },
+  wall: { symbol: '▬', label: 'Wall' },
+  brazier: { symbol: '✦', label: 'Brazier' },
+  rubble: { symbol: '▲', label: 'Rubble' },
+  bench: { symbol: '▭', label: 'Bench' }
+};
+
+function forgeWorldPos(gx, gz) {
+  return [(gx - FORGE_CENTER) * FORGE_STEP, (gz - FORGE_CENTER) * FORGE_STEP];
+}
+
+function drawCustomArenaProps(arena) {
+  for (const prop of arena.props || []) {
+    if (!FORGE_TYPES[prop.t]) continue;
+    const [x, z] = forgeWorldPos(prop.x, prop.z);
+    if (prop.t === 'pillar') {
+      addPillar(x, z, { height: 3.0, color: 0x7c838c, torch: false });
+    } else if (prop.t === 'crate') {
+      addStaticBox({ size: [1.25, 1.25, 1.25], pos: [x, 0.625, z], color: 0x6a4b2f, roughness: 0.95 });
+    } else if (prop.t === 'barrel') {
+      addStaticBox({ size: [0.9, 1.1, 0.9], pos: [x, 0.55, z], color: 0x5a4028, roughness: 0.95 });
+    } else if (prop.t === 'wall') {
+      addStaticBox({ size: [2.3, 1.05, 0.55], pos: [x, 0.525, z], color: 0x6f7a86, roughness: 0.96 });
+    } else if (prop.t === 'brazier') {
+      addStaticBox({ size: [0.55, 0.95, 0.55], pos: [x, 0.475, z], color: 0x4a3a2a, roughness: 0.9 });
+      addTorch(x, 1.25, z, 0xffa64d, 20, 12);
+    } else if (prop.t === 'rubble') {
+      addStaticBox({ size: [1.7, 0.55, 1.25], pos: [x, 0.275, z], rot: [0, 0.35, 0], color: 0x4a4650, roughness: 1 });
+    } else if (prop.t === 'bench') {
+      addStaticBox({ size: [1.8, 0.5, 0.55], pos: [x, 0.25, z], color: 0x4a3724, roughness: 0.9 });
+    }
+  }
 }
 
 // Player physics body (for movement/collision with ground bounds feel)
@@ -1143,6 +1298,10 @@ function doNextBoss() {
 }
 
 window.addEventListener('keydown', (e) => {
+  if (forgeOverlay && forgeOverlay.classList.contains('open')) {
+    if (e.code === 'Escape') closeForge();
+    return;
+  }
   if (storyOpen()) {
     if (e.code === 'Enter') advanceStory();
     return;
@@ -2846,7 +3005,7 @@ function loadBoss(index, announce = true) {
   enemy.deathT = 999;
   bonusUsed = false;
   enemyBody.collisionResponse = true;
-  buildMap(cfg.map || 'courtyard');
+  buildMap(customArena ? customArena.theme : (cfg.map || 'courtyard'));
   buildEnemyCharacter(Object.assign({}, cfg, { scale: enemy.scale }));
   enemyBody.position.set(0, 0.9 * enemy.scale, 0);
   enemyBody.velocity.set(0, 0, 0);
@@ -2856,7 +3015,8 @@ function loadBoss(index, announce = true) {
   if (announce) {
     const prefix = cfg.final ? 'FINAL BOSS! ' : (cfg.miniboss ? 'MINIBOSS! ' : '');
     const eventTag = activeEvent ? ` — EVENT: ${activeEvent.name}!` : '';
-    setMessage(`${prefix}Boss ${bossIndex + 1}/${bosses.length}: ${enemy.name}, ${enemy.title} (Lv. ${enemy.level}) — ${cfg.mapName || 'Arena'}${eventTag}`, 4.5);
+    const arenaLabel = customArena ? customArena.name : (cfg.mapName || 'Arena');
+    setMessage(`${prefix}Boss ${bossIndex + 1}/${bosses.length}: ${enemy.name}, ${enemy.title} (Lv. ${enemy.level}) — ${arenaLabel}${eventTag}`, 4.5);
   }
 }
 
@@ -2875,6 +3035,7 @@ let trainingMode = false;
 let trainingReturnBoss = 0;
 let trainingHits = 0;
 let currentMapTheme = 'courtyard';
+let customArena = null;
 const trainingGroup = new THREE.Group();
 scene.add(trainingGroup);
 const trainingDummies = [];
@@ -4321,6 +4482,378 @@ window.__game = {
     return { boss: enemy.name, theme: bosses[bossIndex].map, mapName: bosses[bossIndex].mapName, meshes, lights: mapGroup.children.filter((c) => c.isLight).length, scale: enemy.scale, hp: enemy.maxHp };
   },
 };
+// ---- Arena Forge UI ----
+const FORGE_KEY = 'storm-of-blade-maps-v1';
+const FORGE_THEMES = ['courtyard', 'dungeon', 'garden', 'keep', 'temple', 'training'];
+const forgeOverlay = document.getElementById('forgeOverlay');
+const forgeGrid = document.getElementById('forgeGrid');
+const forgePalette = document.getElementById('forgePalette');
+const forgeListEl = document.getElementById('forgeList');
+const forgeStatusEl = document.getElementById('forgeStatus');
+const forgeNameInput = document.getElementById('forgeName');
+const forgeThemeSel = document.getElementById('forgeTheme');
+const forgeCodeInput = document.getElementById('forgeCode');
+const forgeTools = Object.keys(FORGE_TYPES).concat('erase');
+let forgeTool = 'pillar';
+let forgeEditingId = null;
+let forgeProps = new Map();
+let forgeCells = [];
+
+const forgeSpawnLabel = (gx, gz) => {
+  const key = `${gx},${gz}`;
+  if (key === `${FORGE_CENTER},${FORGE_CENTER}`) return 'B';
+  if (key === `${FORGE_CENTER},${FORGE_CENTER + 4}`) return 'P';
+  return '';
+};
+
+function forgeUid() {
+  return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function forgeStatus(text) {
+  if (forgeStatusEl) forgeStatusEl.textContent = text || '';
+}
+
+function sanitizeForgeMap(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const name = String(raw.name || 'My Arena').slice(0, 28) || 'My Arena';
+  const theme = FORGE_THEMES.includes(raw.theme) ? raw.theme : 'courtyard';
+  const props = [];
+  const seen = new Set();
+  for (const p of Array.isArray(raw.props) ? raw.props : []) {
+    const x = Number(p && p.x), z = Number(p && p.z), t = p && p.t;
+    if (!Number.isInteger(x) || !Number.isInteger(z)) continue;
+    if (x < 0 || z < 0 || x >= FORGE_GRID || z >= FORGE_GRID) continue;
+    if (FORGE_SPAWNS.has(`${x},${z}`) || !FORGE_TYPES[t]) continue;
+    const key = `${x},${z}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    props.push({ x, z, t });
+  }
+  return { id: String(raw.id || forgeUid()), name, theme, props };
+}
+
+function forgeMaps() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(FORGE_KEY) || '[]');
+    if (!Array.isArray(arr)) return [];
+    return arr.map(sanitizeForgeMap).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function forgeDraft() {
+  const props = [...forgeProps.entries()].map(([key, t]) => {
+    const [x, z] = key.split(',').map(Number);
+    return { x, z, t };
+  });
+  return sanitizeForgeMap({
+    id: forgeEditingId || forgeUid(),
+    name: forgeNameInput.value,
+    theme: forgeThemeSel.value,
+    props
+  });
+}
+
+function saveForgeMap(announce = true) {
+  const map = forgeDraft();
+  if (!map) return null;
+  const maps = forgeMaps();
+  const i = maps.findIndex((m) => m.id === map.id);
+  if (i >= 0) maps[i] = map; else maps.unshift(map);
+  try {
+    localStorage.setItem(FORGE_KEY, JSON.stringify(maps.slice(0, 24)));
+  } catch {
+    forgeStatus('Could not save — browser storage is full.');
+    return null;
+  }
+  forgeEditingId = map.id;
+  renderForgeList();
+  if (announce) forgeStatus(`Saved "${map.name}" (${map.props.length} props).`);
+  return map;
+}
+
+function forgeEncode(map) {
+  const json = JSON.stringify({
+    n: map.name,
+    t: map.theme,
+    p: map.props.map((p) => [p.x, p.z, p.t])
+  });
+  return btoa(String.fromCharCode(...new TextEncoder().encode(json)));
+}
+
+function forgeDecode(code) {
+  try {
+    const bytes = Uint8Array.from(atob((code || '').trim()), (c) => c.charCodeAt(0));
+    const data = JSON.parse(new TextDecoder().decode(bytes));
+    return sanitizeForgeMap({
+      name: data.n,
+      theme: data.t,
+      props: (Array.isArray(data.p) ? data.p : []).map((a) => ({ x: a[0], z: a[1], t: a[2] }))
+    });
+  } catch {
+    return null;
+  }
+}
+
+function renderForgeGrid() {
+  for (const btn of forgeCells) {
+    const gx = Number(btn.dataset.gx), gz = Number(btn.dataset.gz);
+    const key = `${gx},${gz}`;
+    const spawn = forgeSpawnLabel(gx, gz);
+    const prop = forgeProps.get(key);
+    btn.className = 'forgeCell';
+    if (spawn) {
+      btn.classList.add('spawn');
+      btn.textContent = spawn;
+      btn.setAttribute('aria-label', spawn === 'B' ? 'Boss spawn' : 'Player spawn');
+    } else if (prop) {
+      btn.classList.add('t-' + prop);
+      btn.textContent = FORGE_TYPES[prop].symbol;
+      btn.setAttribute('aria-label', FORGE_TYPES[prop].label);
+    } else {
+      btn.textContent = '';
+      btn.setAttribute('aria-label', 'Empty');
+    }
+  }
+}
+
+function renderForgePalette() {
+  if (!forgePalette) return;
+  const entries = Object.keys(FORGE_TYPES).map((t) => [t, FORGE_TYPES[t]]).concat([['erase', { symbol: '⌫', label: 'Erase' }]]);
+  forgePalette.innerHTML = '';
+  for (const [t, meta] of entries) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.tool = t;
+    b.textContent = meta.label;
+    b.className = forgeTool === t ? 'active' : '';
+    b.addEventListener('click', () => {
+      forgeTool = t;
+      renderForgePalette();
+    });
+    forgePalette.appendChild(b);
+  }
+}
+
+function renderForgeList() {
+  if (!forgeListEl) return;
+  const maps = forgeMaps();
+  forgeListEl.innerHTML = '';
+  if (!maps.length) {
+    const empty = document.createElement('div');
+    empty.className = 'forgeEmpty';
+    empty.textContent = 'No saved arenas yet.';
+    forgeListEl.appendChild(empty);
+    return;
+  }
+  for (const map of maps) {
+    const row = document.createElement('div');
+    row.className = 'forgeSaved';
+    const name = document.createElement('span');
+    name.className = 'forgeSavedName';
+    name.textContent = map.name;
+    name.title = `${map.name} · ${map.props.length} props`;
+    const meta = document.createElement('span');
+    meta.className = 'forgeSavedMeta';
+    meta.textContent = `${map.props.length}p`;
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.textContent = 'Edit';
+    edit.addEventListener('click', () => editForgeMap(map));
+    const play = document.createElement('button');
+    play.type = 'button';
+    play.textContent = 'Play';
+    play.addEventListener('click', () => {
+      editForgeMap(map);
+      playForgeArena();
+    });
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = '×';
+    del.title = 'Delete';
+    del.addEventListener('click', () => {
+      const rest = forgeMaps().filter((m) => m.id !== map.id);
+      localStorage.setItem(FORGE_KEY, JSON.stringify(rest));
+      if (forgeEditingId === map.id) forgeEditingId = null;
+      renderForgeList();
+      forgeStatus(`Deleted "${map.name}".`);
+    });
+    row.append(name, meta, edit, play, del);
+    forgeListEl.appendChild(row);
+  }
+}
+
+function buildForgeGrid() {
+  if (!forgeGrid || forgeCells.length) return;
+  for (let gz = 0; gz < FORGE_GRID; gz++) {
+    for (let gx = 0; gx < FORGE_GRID; gx++) {
+      const cell = document.createElement('button');
+      cell.type = 'button';
+      cell.className = 'forgeCell';
+      cell.dataset.gx = String(gx);
+      cell.dataset.gz = String(gz);
+      cell.setAttribute('role', 'gridcell');
+      cell.addEventListener('contextmenu', (e) => e.preventDefault());
+      cell.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        paintForgeCell(gx, gz, e.button === 2 || e.shiftKey);
+      });
+      cell.addEventListener('pointerenter', (e) => {
+        if (e.buttons === 1) paintForgeCell(gx, gz, false);
+        else if (e.buttons === 2) paintForgeCell(gx, gz, true);
+      });
+      forgeGrid.appendChild(cell);
+      forgeCells.push(cell);
+    }
+  }
+}
+
+function paintForgeCell(gx, gz, erase) {
+  const key = `${gx},${gz}`;
+  if (FORGE_SPAWNS.has(key)) {
+    forgeStatus('That tile is a spawn point — keep it clear.');
+    return;
+  }
+  if (erase || forgeTool === 'erase') {
+    forgeProps.delete(key);
+  } else {
+    forgeProps.set(key, forgeTool);
+  }
+  renderForgeGrid();
+}
+
+function editForgeMap(map) {
+  const safe = sanitizeForgeMap(map);
+  if (!safe) return;
+  forgeEditingId = safe.id;
+  forgeNameInput.value = safe.name;
+  forgeThemeSel.value = safe.theme;
+  forgeProps = new Map(safe.props.map((p) => [`${p.x},${p.z}`, p.t]));
+  renderForgeGrid();
+  forgeStatus(`Editing "${safe.name}".`);
+}
+
+function renderForgeAll() {
+  buildForgeGrid();
+  renderForgeGrid();
+  renderForgePalette();
+  renderForgeList();
+}
+
+function openForge() {
+  if (!forgeOverlay) return;
+  if (document.pointerLockElement) document.exitPointerLock();
+  if (storyOverlay) storyOverlay.style.display = 'none';
+  if (typeof shopOpen !== 'undefined' && shopOpen) closeShop();
+  overlay.style.display = 'none';
+  forgeOverlay.classList.add('open');
+  renderForgeAll();
+  forgeStatus('Pick a prop, then click the grid to build.');
+}
+
+function closeForge() {
+  if (!forgeOverlay) return;
+  forgeOverlay.classList.remove('open');
+  const inDuel = controls.isLocked || (fallbackLook && fallbackActive && overlay.style.display === 'none');
+  if (!inDuel) {
+    overlay.style.display = 'flex';
+    startBtn.textContent = 'Resume';
+  }
+}
+
+function playForgeArena() {
+  const map = saveForgeMap(false) || forgeDraft();
+  if (!map || !map.props.length) {
+    forgeStatus('Place at least one prop before playing.');
+    return;
+  }
+  customArena = { name: map.name, theme: map.theme, props: map.props };
+  forgeOverlay.classList.remove('open');
+  if (storyOverlay) storyOverlay.style.display = 'none';
+  overlay.style.display = 'none';
+  if (typeof shopOpen !== 'undefined' && shopOpen) closeShop();
+  if (document.pointerLockElement) document.exitPointerLock();
+  resetPlayerState();
+  loadBoss(bossIndex, true);
+  setMessage(`Arena Forge — ${map.name}. Fight!`, 4);
+  requestStart();
+}
+
+if (document.getElementById('forgeFromMenu')) {
+  document.getElementById('forgeFromMenu').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openForge();
+  });
+}
+if (document.getElementById('storyForge')) {
+  document.getElementById('storyForge').addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openForge();
+  });
+}
+if (document.getElementById('forgeClose')) {
+  document.getElementById('forgeClose').addEventListener('click', (e) => {
+    e.preventDefault();
+    closeForge();
+  });
+}
+if (document.getElementById('forgeSave')) {
+  document.getElementById('forgeSave').addEventListener('click', (e) => {
+    e.preventDefault();
+    saveForgeMap(true);
+  });
+}
+if (document.getElementById('forgePlay')) {
+  document.getElementById('forgePlay').addEventListener('click', (e) => {
+    e.preventDefault();
+    playForgeArena();
+  });
+}
+if (document.getElementById('forgeNew')) {
+  document.getElementById('forgeNew').addEventListener('click', (e) => {
+    e.preventDefault();
+    forgeEditingId = null;
+    forgeProps = new Map();
+    forgeNameInput.value = 'My Arena';
+    forgeThemeSel.value = 'courtyard';
+    renderForgeGrid();
+    forgeStatus('New arena started.');
+  });
+}
+if (document.getElementById('forgeStandard')) {
+  document.getElementById('forgeStandard').addEventListener('click', (e) => {
+    e.preventDefault();
+    customArena = null;
+    forgeStatus('Standard arenas restored for new duels.');
+  });
+}
+if (document.getElementById('forgeExport')) {
+  document.getElementById('forgeExport').addEventListener('click', (e) => {
+    e.preventDefault();
+    const map = forgeDraft();
+    if (!map) return;
+    forgeCodeInput.value = forgeEncode(map);
+    forgeCodeInput.select();
+    forgeStatus('Share code ready — copy it to a friend.');
+  });
+}
+if (document.getElementById('forgeImport')) {
+  document.getElementById('forgeImport').addEventListener('click', (e) => {
+    e.preventDefault();
+    const map = forgeDecode(forgeCodeInput.value);
+    if (!map) {
+      forgeStatus('That share code is not valid.');
+      return;
+    }
+    editForgeMap(map);
+    forgeStatus(`Imported "${map.name}" (${map.props.length} props). Save it to keep it.`);
+  });
+}
+
 // Optional: jump straight to a boss with ?boss=N (1-based) — useful for testing.
 const qs = new URLSearchParams(location.search);
 const qBoss = parseInt(qs.get('boss') || '', 10);
@@ -4340,6 +4873,59 @@ if (qs.has('shop')) {
 // Debug: force a specific arena event, e.g. ?boss=12&event=treasure
 const qEvent = qs.get('event');
 if (qEvent) startArenaEvent(qEvent, false);
+
+// Debug: open the Arena Forge directly, or run a self-test of its data/render path.
+if (qs.has('mapforge')) openForge();
+if (qs.has('testforge')) {
+  const sample = {
+    id: 'forge-test',
+    name: 'Test Arena',
+    theme: 'temple',
+    props: [
+      { x: 2, z: 2, t: 'pillar' },
+      { x: 8, z: 3, t: 'crate' },
+      { x: 4, z: 7, t: 'brazier' },
+      { x: 5, z: 5, t: 'wall' }
+    ]
+  };
+  const clean = sanitizeForgeMap(sample);
+  const roundtrip = forgeDecode(forgeEncode(clean));
+  customArena = { name: clean.name, theme: clean.theme, props: clean.props };
+  loadBoss(0, false);
+  let meshes = 0;
+  mapGroup.traverse((o) => { if (o.isMesh) meshes++; });
+  customArena = null;
+  setMessage(`FORGE TEST props=${clean.props.length} roundtrip=${roundtrip ? roundtrip.props.length : 0} meshes=${meshes} theme=${currentMapTheme}`, 20);
+}
+if (qs.has('testforgeui')) {
+  openForge();
+  forgeTool = 'crate';
+  paintForgeCell(1, 1, false);
+  paintForgeCell(2, 1, false);
+  forgeTool = 'brazier';
+  paintForgeCell(5, 5, false); // boss spawn — must be refused
+  paintForgeCell(6, 8, false);
+  forgeNameInput.value = 'UI Test';
+  forgeThemeSel.value = 'keep';
+  const saved = saveForgeMap(false);
+  const listed = forgeMaps().some((m) => m.name === 'UI Test' && m.props.length === 3);
+  forgeCodeInput.value = forgeEncode(saved);
+  document.getElementById('forgeImport').click();
+  setMessage(`FORGE UI TEST saved=${!!saved} listed=${listed} props=${saved.props.length} painted=${forgeProps.size} grid=${forgeCells.length} palette=${forgePalette.children.length}`, 20);
+}
+if (qs.has('testforgeplay')) {
+  openForge();
+  forgeTool = 'pillar';
+  paintForgeCell(2, 2, false);
+  paintForgeCell(7, 7, false);
+  forgeNameInput.value = 'Play Test';
+  forgeThemeSel.value = 'keep';
+  playForgeArena();
+  let meshes = 0;
+  mapGroup.traverse((o) => { if (o.isMesh) meshes++; });
+  document.body.dataset.forgeTest = `custom=${customArena ? customArena.name : 'none'} theme=${currentMapTheme} props=${customArena ? customArena.props.length : 0} meshes=${meshes} boss=${enemy.name}`;
+  setMessage(`FORGE PLAY TEST ${document.body.dataset.forgeTest}`, 20);
+}
 
 // Debug: exercise event spawning, pickups and modifiers.
 if (qs.has('testevents')) {
