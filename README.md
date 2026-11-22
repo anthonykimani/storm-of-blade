@@ -1,4 +1,4 @@
-# Clash of Steel — Next.js (Vercel)
+# Storm of Blade - Next.js (Vercel)
 
 Next.js wrapper for the game. The React app provides the landing page and privacy page; the game itself is served as a static HTML app from `public/game/` (so pointer lock and ES-module import maps work normally).
 
