@@ -1,23 +1,115 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Storm of Blade">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#2a2f36"/>
-      <stop offset="100%" stop-color="#14171b"/>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1d3a5c"/>
+      <stop offset="48%" stop-color="#0b1728"/>
+      <stop offset="100%" stop-color="#04070d"/>
     </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="40%" r="62%">
+      <stop offset="0%" stop-color="#4a8ecb" stop-opacity="0.55"/>
+      <stop offset="48%" stop-color="#1f4468" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7d93aa"/>
+      <stop offset="28%" stop-color="#dbe9f7"/>
+      <stop offset="48%" stop-color="#ffffff"/>
+      <stop offset="66%" stop-color="#b8cbdd"/>
+      <stop offset="100%" stop-color="#61758c"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff3c4"/>
+      <stop offset="42%" stop-color="#f2bb52"/>
+      <stop offset="100%" stop-color="#9a5c10"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fffde8"/>
+      <stop offset="38%" stop-color="#ffe36b"/>
+      <stop offset="100%" stop-color="#ff9a1a"/>
+    </linearGradient>
+    <linearGradient id="leather" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1b110c"/>
+      <stop offset="50%" stop-color="#4a2e1d"/>
+      <stop offset="100%" stop-color="#1b110c"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
   </defs>
-  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="190" fill="#1f2329" stroke="#6f7782" stroke-width="10"/>
-  <g transform="translate(256 256) rotate(-35)">
-    <rect x="-16" y="-170" width="32" height="230" rx="8" fill="#d7dee6"/>
-    <rect x="-70" y="40" width="140" height="22" rx="8" fill="#8a8f98"/>
-    <rect x="-18" y="58" width="36" height="90" rx="10" fill="#5a3b22"/>
-    <circle cx="0" cy="156" r="18" fill="#8a8f98"/>
+
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <rect width="512" height="512" fill="url(#halo)"/>
+
+  <!-- driving rain -->
+  <g stroke="#9ccdff" stroke-width="3" stroke-linecap="round" opacity="0.2">
+    <path d="M78 70 L46 150"/>
+    <path d="M120 34 L96 94"/>
+    <path d="M430 86 L398 166"/>
+    <path d="M456 148 L430 216"/>
+    <path d="M64 236 L34 310"/>
+    <path d="M466 260 L438 330"/>
+    <path d="M96 388 L68 456"/>
+    <path d="M428 402 L402 466"/>
   </g>
-  <g transform="translate(256 256) rotate(35)">
-    <rect x="-16" y="-170" width="32" height="230" rx="8" fill="#c9d3dc"/>
-    <rect x="-70" y="40" width="140" height="22" rx="8" fill="#7f8791"/>
-    <rect x="-18" y="58" width="36" height="90" rx="10" fill="#4f331d"/>
-    <circle cx="0" cy="156" r="18" fill="#7f8791"/>
+
+  <!-- storm ring -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#5d93c9" stroke-width="3" opacity="0.32"/>
+  <circle cx="256" cy="256" r="182" fill="none" stroke="#a8d8ff" stroke-width="2" opacity="0.22" stroke-dasharray="5 15"/>
+
+  <!-- lightning behind the blade -->
+  <g filter="url(#glow)" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    <path d="M92 46 L186 168 L142 180 L232 292" stroke="url(#bolt)" stroke-width="17" opacity="0.9"/>
+    <path d="M424 470 L334 342 L382 330 L298 214" stroke="url(#bolt)" stroke-width="12" opacity="0.72"/>
   </g>
-  <path d="M256 210 L286 256 L256 302 L226 256 Z" fill="#ffd36a" opacity="0.95"/>
+  <path d="M92 46 L186 168 L142 180 L232 292" fill="none" stroke="#fffdf0" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" opacity="0.75"/>
+
+  <!-- wind arcs -->
+  <g fill="none" stroke="#c6e6ff" stroke-linecap="round" opacity="0.3">
+    <path d="M78 330 C142 392 214 414 312 408" stroke-width="7"/>
+    <path d="M104 366 C160 414 220 430 300 426" stroke-width="4" opacity="0.7"/>
+    <path d="M438 190 C394 136 336 112 274 108" stroke-width="6"/>
+  </g>
+
+  <!-- sword -->
+  <g transform="rotate(-16 256 256)">
+    <!-- blade -->
+    <path d="M222 186 L290 186 L272 392 L256 438 L240 392 Z" fill="url(#blade)" stroke="#070b11" stroke-width="4" stroke-linejoin="round"/>
+    <!-- fuller and ridge -->
+    <path d="M256 200 L256 412" stroke="#5c7288" stroke-width="7" opacity="0.55"/>
+    <path d="M241 198 L244 382" stroke="#ffffff" stroke-width="5" opacity="0.62"/>
+    <path d="M272 198 L268 382" stroke="#8fb6d8" stroke-width="4" opacity="0.55"/>
+    <!-- glowing edges -->
+    <path d="M225 196 L241 382" stroke="#9fe8ff" stroke-width="5" opacity="0.8" filter="url(#soft)"/>
+    <path d="M287 196 L271 382" stroke="#9fe8ff" stroke-width="4" opacity="0.6" filter="url(#soft)"/>
+    <!-- crossguard -->
+    <path d="M136 176 C188 158 324 158 376 176 C384 189 379 203 362 208 C314 192 198 192 150 208 C133 203 128 189 136 176 Z" fill="url(#gold)" stroke="#3a2405" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M156 186 C202 176 310 176 356 186" fill="none" stroke="#fff5cd" stroke-width="4" opacity="0.7"/>
+    <!-- guard gem -->
+    <circle cx="256" cy="183" r="16" fill="#12334f" stroke="#ffeaa8" stroke-width="5"/>
+    <circle cx="256" cy="183" r="7" fill="#a9ecff"/>
+    <!-- grip -->
+    <rect x="237" y="62" width="38" height="104" rx="12" fill="url(#leather)" stroke="#090604" stroke-width="4"/>
+    <g stroke="#c79a55" stroke-width="6" opacity="0.85" stroke-linecap="round">
+      <path d="M239 82 L273 92"/>
+      <path d="M239 104 L273 114"/>
+      <path d="M239 126 L273 136"/>
+      <path d="M239 148 L273 158"/>
+    </g>
+    <!-- pommel -->
+    <circle cx="256" cy="52" r="20" fill="url(#gold)" stroke="#3a2405" stroke-width="4"/>
+    <circle cx="256" cy="52" r="7" fill="#a9ecff" opacity="0.9"/>
+  </g>
+
+  <!-- glints -->
+  <g fill="#fff8d8" filter="url(#glow)" opacity="0.9">
+    <path d="M360 96 L366 116 L386 122 L366 128 L360 148 L354 128 L334 122 L354 116 Z"/>
+    <path d="M132 396 L136 408 L148 412 L136 416 L132 428 L128 416 L116 412 L128 408 Z" opacity="0.75"/>
+  </g>
 </svg>

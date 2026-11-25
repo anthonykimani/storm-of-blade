@@ -6,12 +6,18 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
-  "background_color": "#14171b",
-  "theme_color": "#14171b",
+  "background_color": "#0b1728",
+  "theme_color": "#0b1728",
   "icons": [
     {
       "src": "./icon-256.png",
       "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
