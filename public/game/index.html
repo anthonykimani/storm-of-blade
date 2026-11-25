@@ -30,6 +30,8 @@
     #eventBadgeDesc { display: block; font-size: 11.5px; color: #cfc6b2; margin-top: 2px; line-height: 1.35; }
     @keyframes eventPop { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
     #eventFlash { position: absolute; inset: 0; background: #eaf4ff; opacity: 0; pointer-events: none; transition: opacity 0.05s linear; }
+    #clashFlash { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+      background: radial-gradient(circle at 50% 48%, rgba(255,246,224,0.9), rgba(255,206,120,0.42) 55%, rgba(255,180,80,0) 82%); }
     @media (max-width: 760px) { #eventBadge { max-width: 58vw; font-size: 11px; } }
     #message { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.5); padding: 8px 12px; border-radius: 8px; min-height: 20px; max-width: 90vw; text-align: center; }
     #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.55); color: #fff; z-index: 10; }
@@ -194,6 +196,7 @@
     <div id="vignette"></div>
     <div id="deathVignette"></div>
     <div id="eventFlash"></div>
+  <div id="clashFlash"></div>
     <div id="crosshair"></div>
     <div id="status"></div>
     <div id="eventBadge"><span id="eventBadgeName"></span><span id="eventBadgeDesc"></span></div>
@@ -350,7 +353,7 @@
         <li><b>Bonus stage:</b> after winning a duel, press <b>B</b> to enter the Treasure Vault — slash <b>8 golden orbs</b> in 20 seconds for <b>+1 life</b> (or a full heal if lives are full).</li>
         <li><b>Training Grounds:</b> use the menu button or press <b>T</b> to practise against straw dummies — no lives at risk. Every <b>4 dummy hits</b> permanently sharpens your sword (<b>+2 damage</b>, max <b>+30</b>). Press <b>T</b>, <b>Esc</b>, or <b>Leave Training</b> to return.</li>
         <li><b>Arena Forge:</b> open it from the story screen or menu to build a custom arena in a live 3D preview. Orbit, zoom, place pillars, crates, walls and braziers, save up to 24 arenas, play them with the current boss, or share them as codes.</li>
-        <li><b>Performance:</b> if the game feels slow, press <b>G</b> to toggle Performance mode (shadows off, lower resolution). It also enables automatically on slow devices.</li>
+        <li><b>Performance:</b> if the game feels slow, press <b>G</b> to toggle Performance mode (shadows off, lower resolution). The game also lowers resolution automatically when frames drop.</li>
         <li><b>Mobile:</b> joystick to move, drag right side to look, buttons to fight (Guard raises shield).</li>
         <li>Pointer lock (mouse captured) is used automatically when available; otherwise free mouse-look is used.</li>
       </ul>
@@ -399,6 +402,7 @@ const eventBadge = document.getElementById('eventBadge');
 const eventBadgeName = document.getElementById('eventBadgeName');
 const eventBadgeDesc = document.getElementById('eventBadgeDesc');
 const eventFlashEl = document.getElementById('eventFlash');
+const clashFlashEl = document.getElementById('clashFlash');
 const mobileControls = document.getElementById('mobileControls');
 const joystick = document.getElementById('joystick');
 const stick = document.getElementById('stick');
@@ -516,6 +520,18 @@ scene.fog = new THREE.Fog(0x39424d, 26, 80);
 
 const camera = new THREE.PerspectiveCamera(68, window.innerWidth / window.innerHeight, 0.05, 100);
 camera.position.set(0, 1.7, 6);
+
+// Reusable scratch objects for the hot paths (avoids per-frame garbage collection).
+const UP_VEC = new THREE.Vector3(0, 1, 0);
+const scratchV1 = new THREE.Vector3();
+const scratchV2 = new THREE.Vector3();
+const scratchV3 = new THREE.Vector3();
+const scratchV4 = new THREE.Vector3();
+const scratchQ = new THREE.Quaternion();
+const scratchE1 = new THREE.Euler();
+const scratchE2 = new THREE.Euler();
+const scratchPlayerPos = new THREE.Vector3();
+const scratchImpulse = new CANNON.Vec3();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -638,19 +654,27 @@ fill.position.set(-6, 4, -4);
 scene.add(fill);
 
 let lowQuality = false;
-function setQuality(low) {
+let renderScale = 1;
+function applyRenderScale(scale) {
+  const next = Math.max(0.55, Math.min(1, scale));
+  if (Math.abs(next - renderScale) < 0.001) return;
+  renderScale = next;
+  renderer.setPixelRatio(renderScale);
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+}
+function setQuality(low, silent = false) {
   lowQuality = low;
   renderer.shadowMap.enabled = !low;
   dir.castShadow = !low;
-  renderer.setPixelRatio(low ? 0.75 : 1);
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  for (const l of torchLights) l.visible = !low;
+  applyRenderScale(low ? Math.min(renderScale, 0.8) : Math.max(renderScale, 0.9));
   scene.traverse((o) => {
     if (o.isMesh) {
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       mats.forEach((m) => { if (m) m.needsUpdate = true; });
     }
   });
-  setMessage(low ? 'Performance mode: shadows off, lower resolution (G to toggle).' : 'Quality mode: full shadows and resolution (G to toggle).', 2.5);
+  if (!silent) setMessage(low ? 'Performance mode: shadows off, lower resolution (G to toggle).' : 'Quality mode: full shadows and resolution (G to toggle).', 2.5);
 }
 
 // Physics world
@@ -676,39 +700,56 @@ function syncMesh(mesh, body) {
 const mapGroup = new THREE.Group();
 scene.add(mapGroup);
 let mapBodies = [];
+const torchLights = [];
 
 // ---- Impact particles (sparks) ----
+// Pooled: sparks are created once and reused, so combat produces no material churn or GC spikes.
+const SPARK_LIMIT = 90;
 const fxParticles = [];
 const sparkGeo = new THREE.SphereGeometry(0.035, 6, 6);
+const sparkPool = [];
+let sparkCursor = 0;
+for (let i = 0; i < SPARK_LIMIT; i++) {
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const mesh = new THREE.Mesh(sparkGeo, mat);
+  mesh.visible = false;
+  scene.add(mesh);
+  sparkPool.push({ mesh, mat, vel: new THREE.Vector3(), life: 0, maxLife: 1, active: false });
+}
 function spawnSparks(pos, color = 0xffb45a, count = 12, power = 3) {
-  if (fxParticles.length > 100) return;
-  for (let i = 0; i < count; i++) {
-    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
-    const m = new THREE.Mesh(sparkGeo, mat);
-    m.position.copy(pos);
-    scene.add(m);
-    fxParticles.push({
-      mesh: m,
-      vel: new THREE.Vector3((Math.random() - 0.5) * power, 0.6 + Math.random() * power * 0.8, (Math.random() - 0.5) * power),
-      life: 0.28 + Math.random() * 0.3,
-      maxLife: 0.58
-    });
+  const wanted = lowQuality ? Math.max(3, Math.round(count * 0.6)) : count;
+  let spawned = 0;
+  for (let i = 0; i < SPARK_LIMIT && spawned < wanted; i++) {
+    const p = sparkPool[(sparkCursor + i) % SPARK_LIMIT];
+    if (p.active) continue;
+    p.active = true;
+    p.mesh.visible = true;
+    p.mesh.position.copy(pos);
+    p.mat.color.setHex(color);
+    p.mat.opacity = 0.95;
+    p.mesh.scale.setScalar(0.6);
+    p.vel.set((Math.random() - 0.5) * power, 0.6 + Math.random() * power * 0.8, (Math.random() - 0.5) * power);
+    p.life = 0.28 + Math.random() * 0.3;
+    p.maxLife = 0.58;
+    fxParticles.push(p);
+    spawned++;
   }
+  sparkCursor = (sparkCursor + spawned) % SPARK_LIMIT;
 }
 function updateParticles(dt) {
   for (let i = fxParticles.length - 1; i >= 0; i--) {
     const p = fxParticles[i];
     p.life -= dt;
     if (p.life <= 0) {
-      scene.remove(p.mesh);
-      p.mesh.material.dispose();
+      p.active = false;
+      p.mesh.visible = false;
       fxParticles.splice(i, 1);
       continue;
     }
     p.vel.y -= 9.5 * dt;
     p.mesh.position.addScaledVector(p.vel, dt);
     const k = Math.max(0, p.life / p.maxLife);
-    p.mesh.material.opacity = k;
+    p.mat.opacity = k;
     p.mesh.scale.setScalar(0.6 + k * 1.1);
   }
 }
@@ -753,6 +794,7 @@ function clearMap() {
     }
   });
   while (mapGroup.children.length) mapGroup.remove(mapGroup.children[0]);
+  torchLights.length = 0;
   for (const b of mapBodies) world.removeBody(b);
   mapBodies = [];
 }
@@ -781,7 +823,9 @@ function addTorch(x, y, z, color = 0xffb066, intensity = 22, dist = 14) {
   light.position.set(x, y, z);
   light.userData.baseIntensity = intensity;
   light.userData.flickerPhase = Math.random() * 10;
+  light.visible = !lowQuality;
   mapGroup.add(light);
+  torchLights.push(light);
   const flame = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color }));
   flame.position.set(x, y + 0.02, z);
   mapGroup.add(flame);
@@ -3057,7 +3101,9 @@ let stepTimer = 0;
 let hudTimer = 0;
 let perfFrames = 0;
 let perfTime = 0;
-let perfChecked = false;
+let perfLastMs = performance.now();
+let perfSlowStreak = 0;
+let perfFastStreak = 0;
 
 // Apply saved level and equipped armour to player stats after declarations.
 refreshPlayerMaxStats(true);
@@ -3477,10 +3523,10 @@ function updateTraining(dt) {
   }
   if (!playerSwing.active) { playerSwing.dummyHit = false; return; }
   if (playerSwing.dummyHit) return;
-  const dir = new THREE.Vector3();
+  const dir = scratchV1;
   camera.getWorldDirection(dir);
   for (const d of trainingDummies) {
-    const target = new THREE.Vector3(d.position.x, 1.15, d.position.z);
+    const target = scratchV2.set(d.position.x, 1.15, d.position.z);
     const to = target.sub(playerPos());
     const dist = to.length();
     if (dist < 3.0 && dir.dot(to.normalize()) > 0.35) {
@@ -3536,10 +3582,10 @@ function updatePlayerSword(dt) {
   const regen = playerGuard ? 10 : (playerSwing.active ? 2 : 14); // shield helps you hold guard a bit better
   playerStamina = Math.min(playerMaxStamina, playerStamina + regen * eventFx.stamina * dt);
 
-  const basePos = new THREE.Vector3(0.28, -0.28, -0.45);
-  const baseRot = new THREE.Euler(-0.2, -0.2, 0.1);
-  const shieldBasePos = new THREE.Vector3(-0.42, -0.38, -0.68);
-  const shieldBaseRot = new THREE.Euler(0.1, 0.5, 0.1);
+  const basePos = scratchV1.set(0.28, -0.28, -0.45);
+  const baseRot = scratchE1.set(-0.2, -0.2, 0.1);
+  const shieldBasePos = scratchV2.set(-0.42, -0.38, -0.68);
+  const shieldBaseRot = scratchE2.set(0.1, 0.5, 0.1);
   if (playerGuard) {
     basePos.set(0.08, -0.24, -0.52);
     baseRot.set(-0.08, 0.12, -0.55);
@@ -3778,7 +3824,7 @@ function animateEnemyBody(dt) {
 function updateEnemy(dt) {
   if (trainingMode || !enemy.alive) return;
   const sc = enemy.scale || 1;
-  const toPlayer = new THREE.Vector3().subVectors(playerPos(), enemyGroup.position);
+  const toPlayer = scratchV1.subVectors(playerPos(), enemyGroup.position);
   toPlayer.y = 0;
   const dist = toPlayer.length();
   if (dist > 0.001) toPlayer.normalize();
@@ -3820,8 +3866,8 @@ function updateEnemy(dt) {
 
   animateEnemyBody(dt);
 
-  const basePos = new THREE.Vector3(0.35 * sc, 1.35 * sc, -0.2 * sc);
-  const baseRot = new THREE.Euler(-0.4, 0.4, enemy.guard ? 0.9 : 0.2);
+  const basePos = scratchV2.set(0.35 * sc, 1.35 * sc, -0.2 * sc);
+  const baseRot = scratchE1.set(-0.4, 0.4, enemy.guard ? 0.9 : 0.2);
   if (enemy.guard && !enemy.swinging) {
     basePos.set(0.1 * sc, 1.3 * sc, -0.45 * sc);
     baseRot.set(-0.2, 0.0, 1.1);
@@ -3847,8 +3893,8 @@ function updateEnemy(dt) {
   enemyGroup.position.set(enemyBody.position.x, enemyBody.position.y - 0.9 * sc, enemyBody.position.z);
 
 
-  const wpos = new THREE.Vector3();
-  const wquat = new THREE.Quaternion();
+  const wpos = scratchV3;
+  const wquat = scratchQ;
   enemySword.getWorldPosition(wpos);
   enemySword.getWorldQuaternion(wquat);
   enemySwordBody.position.set(wpos.x, wpos.y, wpos.z);
@@ -3917,17 +3963,18 @@ function tryHits() {
   // Simplified hit resolution: when swinging and close/aligned and not blocked by clash state
   if (!enemy.alive) return;
   if (!playerSwing.active && !enemy.swinging) return;
-  const playerToEnemy = new THREE.Vector3().subVectors(enemyGroup.position, playerPos());
+  const playerToEnemy = scratchV1.subVectors(enemyGroup.position, playerPos());
   const dist = playerToEnemy.length();
-  const forward = new THREE.Vector3();
+  const toEnemyDir = scratchV2.copy(playerToEnemy).normalize();
+  const forward = scratchV3;
   if (thirdPerson) forward.set(-Math.sin(yaw), 0, -Math.cos(yaw));
   else camera.getWorldDirection(forward);
-  const facing = forward.dot(playerToEnemy.clone().normalize());
+  const facing = forward.dot(toEnemyDir);
 
   if (playerSwing.active && !playerSwing.didHit && dist < 2.3 + (Math.min(enemy.scale, 1.9) - 1) * 0.9 + (equippedSword().reach || 0) && facing > 0.4) {
     // if enemy guarding and roughly facing player, treat as blocked unless during poor timing window
-    const enemyForward = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), enemyGroup.rotation.y);
-    const enemyFacingPlayer = enemyForward.dot(playerToEnemy.clone().normalize().multiplyScalar(-1)) > 0.3;
+    const enemyForward = scratchV4.set(0, 0, 1).applyAxisAngle(UP_VEC, enemyGroup.rotation.y);
+    const enemyFacingPlayer = -enemyForward.dot(toEnemyDir) > 0.3;
     if (enemy.guard && enemyFacingPlayer) {
       setMessage('Blocked by guard', 0.6);
       playerSwing.active = false; playerSwing.cooldown = 0.45;
@@ -3955,7 +4002,7 @@ function tryHits() {
   if (enemy.swinging) {
     const cfg = ENEMY_ATTACKS[enemy.attackType];
     if (cfg) {
-      const toEnemy = playerToEnemy.clone().normalize();
+      const toEnemy = toEnemyDir;
       const facingDot = forward.dot(toEnemy);
       const t = enemy.attackTime;
       for (let i = 0; i < cfg.strikes.length; i++) {
@@ -4037,7 +4084,7 @@ function updateLockOn() {
   }
   if (!lockOn || !enemy.alive) return;
   const from = playerPos();
-  const target = new THREE.Vector3(enemyBody.position.x, enemyBody.position.y + 0.55, enemyBody.position.z);
+  const target = scratchV1.set(enemyBody.position.x, enemyBody.position.y + 0.55, enemyBody.position.z);
   const to = target.sub(from);
   const dx = to.x, dz = to.z, dy = to.y;
   const horiz = Math.hypot(dx, dz);
@@ -4054,10 +4101,14 @@ function updatePlayerMovement(dt) {
   const baseSpeed = playerGuard ? 2.2 : 3.4;
   const staminaFactor = playerStamina < 20 ? 0.75 : 1.0;
   const speed = baseSpeed * staminaFactor * armourSpeedMult();
-  const dirVec = new THREE.Vector3();
+  const dirVec = scratchV1.set(0, 0, 0);
   camera.updateMatrixWorld();
-  const forward = new THREE.Vector3(); camera.getWorldDirection(forward); forward.y = 0; if (forward.lengthSq() < 0.0001) forward.set(0,0,-1); forward.normalize();
-  const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+  const forward = scratchV2;
+  camera.getWorldDirection(forward);
+  forward.y = 0;
+  if (forward.lengthSq() < 0.0001) forward.set(0, 0, -1);
+  forward.normalize();
+  const right = scratchV3.crossVectors(forward, UP_VEC).normalize();
   if (keys.w) dirVec.add(forward);
   if (keys.s) dirVec.sub(forward);
   if (keys.d) dirVec.add(right);
@@ -4073,8 +4124,8 @@ function updatePlayerMovement(dt) {
 
   dodgeCooldown -= dt;
   if (keys.space && dodgeCooldown <= 0 && playerStamina >= 15) {
-    const back = forward.clone().multiplyScalar(-1);
-    playerBody.applyImpulse(new CANNON.Vec3(back.x * 65, 0, back.z * 65), playerBody.position);
+    scratchV4.set(-forward.x * 65, 0, -forward.z * 65);
+    playerBody.applyImpulse(scratchImpulse.set(scratchV4.x, 0, scratchV4.z), playerBody.position);
     dodgeCooldown = 1.0;
     playerStamina = Math.max(0, playerStamina - 15);
   }
@@ -4261,24 +4312,24 @@ function updateHUD() {
 
 function playerPos() {
   const p = playerBody.position;
-  return new THREE.Vector3(p.x, p.y + 1.0, p.z);
+  return scratchPlayerPos.set(p.x, p.y + 1.0, p.z);
 }
 
 function updateThirdPersonCamera() {
   if (!thirdPerson) return;
-  const target = new THREE.Vector3(
+  const target = scratchV1.set(
     playerBody.position.x,
     Math.max(0.2, playerBody.position.y) + 0.9,
     playerBody.position.z
   );
   const dist = 4.3;
   const cp = Math.cos(pitch);
-  const forward = new THREE.Vector3(
+  const forward = scratchV2.set(
     -Math.sin(yaw) * cp,
     Math.sin(pitch),
     -Math.cos(yaw) * cp
   );
-  const pos = target.clone().addScaledVector(forward, -dist);
+  const pos = scratchV3.copy(target).addScaledVector(forward, -dist);
   const r = Math.hypot(pos.x, pos.z);
   if (r > 11.2) {
     const k = 11.2 / r;
@@ -4358,17 +4409,16 @@ function animate() {
     msgTimer -= dt;
     if (msgTimer <= 0) messageEl.textContent = '';
   }
-  if (clashFlash > 0) {
-    clashFlash -= dt * 3;
-    renderer.domElement.style.filter = `brightness(${1 + Math.max(0, clashFlash) * 0.5})`;
-  } else {
-    renderer.domElement.style.filter = 'none';
+  if (clashFlash > 0) clashFlash = Math.max(0, clashFlash - dt * 3);
+  if (clashFlashEl) {
+    const flashOp = (clashFlash * 0.5).toFixed(3);
+    if (clashFlashEl.style.opacity !== flashOp) clashFlashEl.style.opacity = flashOp;
   }
 
   // Torch flicker for a more alive, firelit look
   const flick = performance.now() * 0.001;
   for (const ch of mapGroup.children) {
-    if (ch.isLight && ch.userData.baseIntensity) {
+    if (ch.isLight && ch.visible && ch.userData.baseIntensity) {
       const ph = ch.userData.flickerPhase || 0;
       ch.intensity = ch.userData.baseIntensity * (0.86 + 0.1 * Math.sin(flick * 9 + ph) + 0.04 * Math.sin(flick * 23 + ph * 1.7));
     }
@@ -4393,17 +4443,34 @@ function animate() {
   hudTimer -= dt;
   if (hudTimer <= 0) { updateHUD(); hudTimer = 0.12; }
 
-  // One-time automatic performance check (visible tab only).
-  if (!perfChecked && document.visibilityState === 'visible' && rawDt > 0) {
+  // Continuous frame-pacing monitor: keeps resolution smooth instead of letting slow moments drag.
+  const nowMs = performance.now();
+  const realDt = (nowMs - perfLastMs) / 1000;
+  perfLastMs = nowMs;
+  if (document.visibilityState === 'visible' && realDt > 0 && realDt < 0.25) {
     perfFrames++;
-    perfTime += rawDt;
-    if (perfTime > 3.5) {
-      perfChecked = true;
-      if (perfFrames / perfTime < 42) setQuality(true);
+    perfTime += realDt;
+    if (perfTime >= 2) {
+      const fps = perfFrames / perfTime;
+      perfFrames = 0;
+      perfTime = 0;
+      if (fps < 45) { perfSlowStreak++; perfFastStreak = 0; }
+      else if (fps > 57) { perfFastStreak++; perfSlowStreak = 0; }
+      else { perfSlowStreak = 0; perfFastStreak = 0; }
+
+      if (perfSlowStreak >= 2) {
+        if (renderScale > 0.72) applyRenderScale(renderScale - 0.12);
+        else if (!lowQuality) setQuality(true, true);
+        else if (renderScale > 0.56) applyRenderScale(renderScale - 0.08);
+        perfSlowStreak = 0;
+      } else if (perfFastStreak >= 4 && renderScale < 0.999 && !lowQuality) {
+        applyRenderScale(renderScale + 0.05);
+        perfFastStreak = 0;
+      }
     }
   }
 
-  renderer.render(scene, camera);
+  if (!document.getElementById('forgeOverlay')?.classList.contains('open')) renderer.render(scene, camera);
 }
 
 window.addEventListener('resize', () => {
@@ -4474,6 +4541,17 @@ window.__game = {
     mapGroup.traverse((o) => { if (o.isMesh) meshes++; });
     return { boss: enemy.name, theme: bosses[bossIndex].map, mapName: bosses[bossIndex].mapName, meshes, lights: mapGroup.children.filter((c) => c.isLight).length, scale: enemy.scale, hp: enemy.maxHp };
   },
+  perf: () => ({
+    renderScale,
+    lowQuality,
+    torchLights: torchLights.length,
+    torchLightsOn: torchLights.filter((l) => l.visible).length,
+    activeSparks: fxParticles.length,
+    sparkPool: sparkPool.length,
+    drawCalls: renderer.info.render.calls,
+    triangles: renderer.info.render.triangles
+  }),
+  setRenderScale: (s) => { applyRenderScale(s); return renderScale; },
 };
 // ---- Arena Forge UI ----
 const FORGE_KEY = 'storm-of-blade-maps-v1';
@@ -4783,6 +4861,25 @@ function forgeStartLoop() {
 function forgeStopLoop() {
   if (forgeRaf) cancelAnimationFrame(forgeRaf);
   forgeRaf = 0;
+}
+
+// Free the editor's WebGL context and GPU memory when leaving the forge, so duels run with a single context.
+function forgeDispose3D() {
+  forgeStopLoop();
+  if (!forge3d) return;
+  const { renderer, scene } = forge3d;
+  scene.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach((m) => { m?.map?.dispose?.(); m?.dispose?.(); });
+    }
+  });
+  renderer.dispose();
+  try { renderer.forceContextLoss(); } catch { /* ignore */ }
+  if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+  forge3d = null;
+  forgeHover = { gx: -1, gz: -1 };
 }
 
 function forgeInit3D() {
@@ -5140,7 +5237,7 @@ function openForge() {
 function closeForge() {
   if (!forgeOverlay) return;
   forgeOverlay.classList.remove('open');
-  forgeStopLoop();
+  forgeDispose3D();
   const inDuel = controls.isLocked || (fallbackLook && fallbackActive && overlay.style.display === 'none');
   if (!inDuel) {
     overlay.style.display = 'flex';
@@ -5156,6 +5253,7 @@ function playForgeArena() {
   }
   customArena = { name: map.name, theme: map.theme, props: map.props };
   forgeOverlay.classList.remove('open');
+  forgeDispose3D();
   if (storyOverlay) storyOverlay.style.display = 'none';
   overlay.style.display = 'none';
   if (typeof shopOpen !== 'undefined' && shopOpen) closeShop();
@@ -5381,6 +5479,25 @@ if (qs.has('testforgelayout')) {
   };
   document.body.dataset.forgeLayout = `win=${window.innerWidth}x${window.innerHeight} panel=${box('#forgePanel')} body=${box('#forgeBody')} view=${box('#forgeView')} side=${box('#forgeSide')} doc=${document.documentElement.scrollWidth}`;
   setMessage(`FORGE LAYOUT ${document.body.dataset.forgeLayout}`, 20);
+}
+
+if (qs.has('testperf')) {
+  const before = window.__game.perf();
+  applyRenderScale(0.6);
+  const scaleDown = renderer.getPixelRatio();
+  applyRenderScale(1);
+  const scaleUp = renderer.getPixelRatio();
+  const sparkPos = new THREE.Vector3(0, 1, 0);
+  spawnSparks(sparkPos, 0xffcc66, 15, 2);
+  const sparks1 = fxParticles.length;
+  spawnSparks(sparkPos, 0xffcc66, 15, 2);
+  const sparks2 = fxParticles.length;
+  setQuality(true, true);
+  const low = window.__game.perf();
+  setQuality(false, true);
+  const after = window.__game.perf();
+  document.body.dataset.perfTest = `scaleDown=${scaleDown} scaleUp=${scaleUp} sparks=${sparks1}->${sparks2} pool=${after.sparkPool} torchOn=${low.torchLightsOn}/${low.torchLights} low=${low.lowQuality} restored=${after.lowQuality} calls=${before.drawCalls}`;
+  setMessage(`PERF TEST ${document.body.dataset.perfTest}`, 20);
 }
 
 // Debug: exercise event spawning, pickups and modifiers.
