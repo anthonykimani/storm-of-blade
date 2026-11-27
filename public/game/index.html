@@ -537,9 +537,9 @@ const scratchImpulse = new CANNON.Vec3();
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.25;
+renderer.toneMappingExposure = 1.18;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.domElement.tabIndex = 0;
 renderer.domElement.style.outline = 'none';
@@ -589,7 +589,7 @@ function makeStoneTexture(rx = 4, ry = 4) {
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(rx, ry);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   return tex;
 }
 
@@ -607,6 +607,90 @@ glowCanvas.width = glowCanvas.height = 64;
 }
 const glowTexture = new THREE.CanvasTexture(glowCanvas);
 glowTexture.colorSpace = THREE.SRGBColorSpace;
+
+// ---- Procedural storm environment map: gives steel and armour real reflections ----
+const envCanvas = document.createElement('canvas');
+envCanvas.width = 1024;
+envCanvas.height = 512;
+{
+  const ctx = envCanvas.getContext('2d');
+  const sky = ctx.createLinearGradient(0, 0, 0, 512);
+  sky.addColorStop(0, '#040a14');
+  sky.addColorStop(0.3, '#102238');
+  sky.addColorStop(0.45, '#2d5374');
+  sky.addColorStop(0.5, '#93aec4');
+  sky.addColorStop(0.54, '#484740');
+  sky.addColorStop(0.72, '#191512');
+  sky.addColorStop(1, '#050403');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, 1024, 512);
+
+  // Brooding cloud bands.
+  for (let i = 0; i < 22; i++) {
+    const x = Math.random() * 1024;
+    const y = 30 + Math.random() * 210;
+    const rx = 80 + Math.random() * 190;
+    const ry = 18 + Math.random() * 50;
+    const cloud = ctx.createRadialGradient(x, y, 0, x, y, rx);
+    const shade = 20 + Math.floor(Math.random() * 34);
+    cloud.addColorStop(0, `rgba(${shade + 18},${shade + 26},${shade + 40},${0.18 + Math.random() * 0.22})`);
+    cloud.addColorStop(1, 'rgba(8,12,20,0)');
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-x, -y);
+    ctx.fillStyle = cloud;
+    ctx.fillRect(x - rx, y - rx, rx * 2, rx * 2);
+    ctx.restore();
+  }
+
+  // Cold moon glow above the horizon.
+  const moon = ctx.createRadialGradient(760, 118, 3, 760, 118, 150);
+  moon.addColorStop(0, 'rgba(246,251,255,0.98)');
+  moon.addColorStop(0.08, 'rgba(214,236,255,0.75)');
+  moon.addColorStop(0.34, 'rgba(126,170,214,0.22)');
+  moon.addColorStop(1, 'rgba(40,70,110,0)');
+  ctx.fillStyle = moon;
+  ctx.fillRect(560, 0, 400, 300);
+
+  // Warm arena fires reflected near the horizon.
+  for (const [x, y, r] of [[190, 274, 90], [870, 286, 76], [510, 292, 54]]) {
+    const fire = ctx.createRadialGradient(x, y, 2, x, y, r);
+    fire.addColorStop(0, 'rgba(255,190,96,0.5)');
+    fire.addColorStop(0.35, 'rgba(240,120,40,0.22)');
+    fire.addColorStop(1, 'rgba(120,40,0,0)');
+    ctx.fillStyle = fire;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+
+  // Faint lightning streak for a bright reflection line.
+  ctx.strokeStyle = 'rgba(206,232,255,0.55)';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(300, 18);
+  ctx.lineTo(340, 120);
+  ctx.lineTo(312, 128);
+  ctx.lineTo(356, 232);
+  ctx.stroke();
+}
+const envTexture = new THREE.CanvasTexture(envCanvas);
+envTexture.mapping = THREE.EquirectangularReflectionMapping;
+envTexture.colorSpace = THREE.SRGBColorSpace;
+scene.environment = envTexture;
+
+// Soft contact shadow used to ground fighters even when real shadows are off.
+const shadowCanvas = document.createElement('canvas');
+shadowCanvas.width = shadowCanvas.height = 128;
+{
+  const ctx = shadowCanvas.getContext('2d');
+  const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(0,0,0,0.62)');
+  grad.addColorStop(0.45, 'rgba(0,0,0,0.34)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+}
+const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
 
 // Floating dust motes for atmosphere.
 function createDustMotes() {
@@ -635,11 +719,11 @@ function createDustMotes() {
 }
 const dustMotes = createDustMotes();
 
-const hemi = new THREE.HemisphereLight(0xe8f0fa, 0x4a4e40, 1.15);
+const hemi = new THREE.HemisphereLight(0xe8f0fa, 0x4a4e40, 0.8);
 scene.add(hemi);
-const ambient = new THREE.AmbientLight(0xffffff, 0.45);
+const ambient = new THREE.AmbientLight(0xffffff, 0.25);
 scene.add(ambient);
-const dir = new THREE.DirectionalLight(0xfff1d6, 2.2);
+const dir = new THREE.DirectionalLight(0xfff1d6, 2.6);
 dir.position.set(6, 12, 5);
 dir.castShadow = true;
 dir.shadow.mapSize.set(1024, 1024);
@@ -649,10 +733,33 @@ dir.shadow.camera.left = -15;
 dir.shadow.camera.right = 15;
 dir.shadow.camera.top = 15;
 dir.shadow.camera.bottom = -15;
+dir.shadow.bias = -0.0005;
+dir.shadow.normalBias = 0.02;
 scene.add(dir);
-const fill = new THREE.DirectionalLight(0x9db8d6, 0.55);
+const fill = new THREE.DirectionalLight(0x9db8d6, 0.38);
 fill.position.set(-6, 4, -4);
 scene.add(fill);
+
+// Contact shadows keep the fighters visually planted on the stone.
+function makeBlobShadow(opacity) {
+  const mat = new THREE.MeshBasicMaterial({
+    map: shadowTexture,
+    color: 0x000000,
+    transparent: true,
+    opacity,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = 0.016;
+  mesh.renderOrder = 2;
+  scene.add(mesh);
+  return mesh;
+}
+const playerBlobShadow = makeBlobShadow(0.45);
+const enemyBlobShadow = makeBlobShadow(0.55);
+enemyBlobShadow.visible = false;
 
 let lowQuality = false;
 let renderScale = 1;
@@ -755,6 +862,97 @@ function updateParticles(dt) {
   }
 }
 
+// ---- Footstep and impact dust (one draw call, GPU-faded) ----
+const DUST_MAX = 72;
+const dustPositions = new Float32Array(DUST_MAX * 3);
+const dustLifeAttr = new Float32Array(DUST_MAX);
+const dustSizeAttr = new Float32Array(DUST_MAX);
+for (let i = 0; i < DUST_MAX; i++) dustPositions[i * 3 + 1] = -100;
+const dustGeo = new THREE.BufferGeometry();
+dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+dustGeo.setAttribute('aLife', new THREE.BufferAttribute(dustLifeAttr, 1));
+dustGeo.setAttribute('aSize', new THREE.BufferAttribute(dustSizeAttr, 1));
+const dustMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uMap: { value: glowTexture },
+    uColor: { value: new THREE.Color(0xbeb19c) }
+  },
+  vertexShader: `
+    attribute float aLife;
+    attribute float aSize;
+    varying float vLife;
+    void main() {
+      vLife = aLife;
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = aSize * (260.0 / max(0.1, -mv.z));
+      gl_Position = projectionMatrix * mv;
+    }
+  `,
+  fragmentShader: `
+    uniform sampler2D uMap;
+    uniform vec3 uColor;
+    varying float vLife;
+    void main() {
+      float a = texture2D(uMap, gl_PointCoord).a * vLife * 0.42;
+      if (a < 0.01) discard;
+      gl_FragColor = vec4(uColor, a);
+    }
+  `,
+  transparent: true,
+  depthWrite: false
+});
+const dustPoints = new THREE.Points(dustGeo, dustMat);
+dustPoints.frustumCulled = false;
+dustPoints.renderOrder = 3;
+scene.add(dustPoints);
+const dustParticles = Array.from({ length: DUST_MAX }, () => ({ life: 0, maxLife: 1, vx: 0, vy: 0, vz: 0 }));
+let dustCursor = 0;
+function spawnDust(pos, count = 4, power = 0.6) {
+  const n = lowQuality ? Math.max(1, Math.round(count * 0.45)) : count;
+  for (let i = 0; i < n; i++) {
+    const idx = dustCursor++ % DUST_MAX;
+    const d = dustParticles[idx];
+    d.life = 0.45 + Math.random() * 0.5;
+    d.maxLife = d.life;
+    d.vx = (Math.random() - 0.5) * power;
+    d.vy = 0.12 + Math.random() * 0.3 * power;
+    d.vz = (Math.random() - 0.5) * power;
+    dustPositions[idx * 3] = pos.x + (Math.random() - 0.5) * 0.3;
+    dustPositions[idx * 3 + 1] = Math.max(0.04, pos.y) + Math.random() * 0.06;
+    dustPositions[idx * 3 + 2] = pos.z + (Math.random() - 0.5) * 0.3;
+    dustLifeAttr[idx] = 1;
+    dustSizeAttr[idx] = 0.32 + Math.random() * 0.5;
+  }
+  dustGeo.attributes.position.needsUpdate = true;
+  dustGeo.attributes.aLife.needsUpdate = true;
+  dustGeo.attributes.aSize.needsUpdate = true;
+}
+function updateDust(dt) {
+  let dirty = false;
+  for (let i = 0; i < DUST_MAX; i++) {
+    const d = dustParticles[i];
+    if (d.life <= 0) continue;
+    dirty = true;
+    d.life -= dt;
+    const k = Math.max(0, d.life / d.maxLife);
+    dustPositions[i * 3] += d.vx * dt;
+    dustPositions[i * 3 + 1] += d.vy * dt;
+    dustPositions[i * 3 + 2] += d.vz * dt;
+    d.vx *= 0.95;
+    d.vz *= 0.95;
+    d.vy = d.vy * 0.97 + 0.02 * dt;
+    dustLifeAttr[i] = k;
+    if (d.life <= 0) {
+      dustPositions[i * 3 + 1] = -100;
+      dustLifeAttr[i] = 0;
+    }
+  }
+  if (dirty) {
+    dustGeo.attributes.position.needsUpdate = true;
+    dustGeo.attributes.aLife.needsUpdate = true;
+  }
+}
+
 // Expanding ground shockwave for the final boss's slam.
 const shockwaves = [];
 function spawnSlamWave() {
@@ -803,7 +1001,7 @@ function clearMap() {
 function addStaticBox({ size, pos, rot = [0,0,0], color = 0x6b6f75, metalness = 0.05, roughness = 0.9, texture = null }) {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(size[0], size[1], size[2]),
-    new THREE.MeshStandardMaterial({ color, metalness, roughness, map: texture })
+    new THREE.MeshStandardMaterial({ color, metalness, roughness, map: texture, bumpMap: texture, bumpScale: texture ? 0.025 : 0 })
   );
   mesh.position.set(pos[0], pos[1], pos[2]);
   mesh.rotation.set(rot[0], rot[1], rot[2]);
@@ -852,7 +1050,8 @@ function addPillar(x, z, opts = {}) {
 }
 
 function addGround(color, ringColor) {  const groundGeo = new THREE.CircleGeometry(22, 80);
-  const groundMatMesh = new THREE.MeshStandardMaterial({ color, roughness: 0.95, map: makeStoneTexture(8, 8), side: THREE.DoubleSide });
+  const groundTex = makeStoneTexture(8, 8);
+  const groundMatMesh = new THREE.MeshStandardMaterial({ color, roughness: 0.95, map: groundTex, bumpMap: groundTex, bumpScale: 0.04, side: THREE.DoubleSide });
   const groundMesh = new THREE.Mesh(groundGeo, groundMatMesh);
   groundMesh.rotation.x = -Math.PI / 2;
   groundMesh.receiveShadow = true;
@@ -2298,7 +2497,7 @@ Object.assign(bosses[bosses.length - 1], {
 });
 let bossIndex = 0;
 
-const enemy = { name: bosses[0].name, hp: bosses[0].maxHp, maxHp: bosses[0].maxHp, alive: true, attackTimer: 0, swingT: 0, swinging: false, guard: false, stagger: 0, didHit: false, speed: 1, aggression: 1, damage: 1, title: bosses[0].title, scale: 1, deathT: 999, walkPhase: 0, attackType: null, attackTime: 0, attackBaseYaw: 0, hitMarks: [false, false], finalBoss: false, slamFx: false };
+const enemy = { name: bosses[0].name, hp: bosses[0].maxHp, maxHp: bosses[0].maxHp, alive: true, attackTimer: 0, swingT: 0, swinging: false, guard: false, stagger: 0, flinch: 0, flinchSide: 0, didHit: false, speed: 1, aggression: 1, damage: 1, title: bosses[0].title, scale: 1, deathT: 999, walkPhase: 0, attackType: null, attackTime: 0, attackBaseYaw: 0, hitMarks: [false, false], finalBoss: false, slamFx: false };
 const enemyGroup = new THREE.Group();
 scene.add(enemyGroup);
 
@@ -2711,6 +2910,9 @@ const BASE_LIGHT = {
   dir: dir.color.clone(),
   fill: fill.color.clone(),
   ambientIntensity: ambient.intensity,
+  hemiIntensity: hemi.intensity,
+  dirIntensity: dir.intensity,
+  fillIntensity: fill.intensity,
   exposure: renderer.toneMappingExposure
 };
 
@@ -2780,6 +2982,9 @@ function restoreBaseLighting() {
   dir.color.copy(BASE_LIGHT.dir);
   fill.color.copy(BASE_LIGHT.fill);
   ambient.intensity = BASE_LIGHT.ambientIntensity;
+  hemi.intensity = BASE_LIGHT.hemiIntensity;
+  dir.intensity = BASE_LIGHT.dirIntensity;
+  fill.intensity = BASE_LIGHT.fillIntensity;
   renderer.toneMappingExposure = BASE_LIGHT.exposure;
 }
 
@@ -3031,6 +3236,8 @@ function loadBoss(index, announce = true) {
   enemy.swinging = false;
   enemy.guard = false;
   enemy.stagger = 0;
+  enemy.flinch = 0;
+  enemy.flinchSide = 0;
   enemy.didHit = false;
   enemy.speed = cfg.speed;
   enemy.aggression = cfg.aggression;
@@ -3587,6 +3794,10 @@ function updatePlayerSword(dt) {
   const baseRot = scratchE1.set(-0.2, -0.2, 0.1);
   const shieldBasePos = scratchV2.set(-0.42, -0.38, -0.68);
   const shieldBaseRot = scratchE2.set(0.1, 0.5, 0.1);
+  // Idle breathing keeps the weapon alive instead of frozen in place.
+  const breath = Math.sin(performance.now() * 0.0017) * 0.007;
+  basePos.y += breath;
+  baseRot.x += breath * 0.9;
   if (playerGuard) {
     basePos.set(0.08, -0.24, -0.52);
     baseRot.set(-0.08, 0.12, -0.55);
@@ -3812,14 +4023,19 @@ function animateEnemyBody(dt) {
   }
 
   // Torso: breathing, twist into the cut, flinch when staggered
+  enemy.flinch = Math.max(0, (enemy.flinch || 0) - dt * 3.2);
   const idle = Math.sin(now * 0.0022) * 0.015;
   const flinch = enemy.stagger > 0 ? 0.2 : 0;
-  parts.torso.rotation.x = b.torsoRotX - flinch;
+  const hitFlinch = enemy.flinch;
+  const hitSide = enemy.flinchSide || 0;
+  parts.torso.rotation.x = b.torsoRotX - flinch - hitFlinch * 0.18;
+  parts.torso.rotation.z = hitFlinch * hitSide;
   parts.torso.position.y = b.torsoY + Math.abs(Math.sin(enemy.walkPhase)) * 0.02 * moveAmt + idle;
 
   // Head follows the player slightly
   parts.head.rotation.y = Math.sin(enemy.walkPhase * 0.5) * 0.04 * moveAmt;
-  parts.head.rotation.x = -flinch * 0.6;
+  parts.head.rotation.x = -flinch * 0.6 - hitFlinch * 0.4;
+  parts.head.rotation.z = hitFlinch * hitSide * 0.6;
 }
 
 function updateEnemy(dt) {
@@ -3989,10 +4205,14 @@ function tryHits() {
       const dmg = (18 + Math.random() * 10 + swordBonus + equippedSword().damage + (playerLevel - 1)) * eventFx.playerDamage;
       enemy.hp = Math.max(0, enemy.hp - dmg);
       enemy.stagger = 0.45;
+      enemy.flinch = 1;
+      enemy.flinchSide = (Math.random() - 0.5) * 0.5;
       playerSwing.didHit = true;
       sfxHit();
       const cp = new THREE.Vector3(enemyBody.position.x, 1.2 * enemy.scale, enemyBody.position.z);
       spawnSparks(cp, 0xff5a3c, 12, 2.8);
+      spawnDust(scratchV4.set(enemyBody.position.x, 0.06, enemyBody.position.z), 5, 0.8);
+      enemyBody.applyImpulse(scratchImpulse.set(toEnemyDir.x * 14, 0, toEnemyDir.z * 14), enemyBody.position);
       shake = Math.min(0.22, shake + 0.05);
       hitStop = Math.max(hitStop, 0.045);
       setMessage(`Solid hit! ${dmg.toFixed(0)} damage`, 0.7);
@@ -4061,6 +4281,7 @@ function resolveEnemyHit(cfg, toEnemy, forward) {
   camera.getWorldDirection(fwd);
   hitPos.addScaledVector(fwd, 0.8);
   spawnSparks(hitPos, 0xff4a3a, 10, 2.2);
+  spawnDust(scratchV4.set(playerBody.position.x, 0.05, playerBody.position.z), 5, 0.9);
   shake = Math.min(0.28, shake + 0.11);
   hitStop = Math.max(hitStop, 0.06);
   if (playerHp <= 0) handlePlayerDeath();
@@ -4129,6 +4350,7 @@ function updatePlayerMovement(dt) {
     playerBody.applyImpulse(scratchImpulse.set(scratchV4.x, 0, scratchV4.z), playerBody.position);
     dodgeCooldown = 1.0;
     playerStamina = Math.max(0, playerStamina - 15);
+    spawnDust(scratchV4.set(playerBody.position.x, 0.05, playerBody.position.z), 7, 1.15);
   }
 
   // subtle head bob
@@ -4142,6 +4364,11 @@ function updatePlayerMovement(dt) {
     if (stepTimer <= 0) {
       ensureAudio();
       playTone({ freq: 95, freq2: 55, dur: 0.09, type: 'sine', gain: 0.022, noise: true });
+      spawnDust(scratchV4.set(
+        playerBody.position.x - forward.x * 0.18,
+        0.05,
+        playerBody.position.z - forward.z * 0.18
+      ), 3, 0.5);
       stepTimer = playerGuard ? 0.75 : 0.48;
     }
   } else {
@@ -4316,6 +4543,28 @@ function playerPos() {
   return scratchPlayerPos.set(p.x, p.y + 1.0, p.z);
 }
 
+function updateBlobShadows() {
+  const p = playerBody.position;
+  const lift = Math.min(1, Math.max(0, (p.y - 0.45) / 0.75));
+  playerBlobShadow.position.set(p.x, 0.016, p.z);
+  const ps = 1.4 + lift * 0.35;
+  playerBlobShadow.scale.set(ps, ps, 1);
+  playerBlobShadow.material.opacity = 0.45 * (1 - lift * 0.45);
+
+  if (!trainingMode && !bonusActive && enemy.alive && enemyGroup.visible) {
+    const s = Math.min(2.7, 2.1 * (enemy.scale || 1));
+    enemyBlobShadow.visible = true;
+    enemyBlobShadow.position.set(enemyGroup.position.x, 0.018, enemyGroup.position.z);
+    enemyBlobShadow.scale.set(s, s, 1);
+    enemyBlobShadow.material.opacity = 0.55;
+  } else if (!enemy.alive && enemy.deathT < 2) {
+    enemyBlobShadow.visible = true;
+    enemyBlobShadow.material.opacity = 0.55 * Math.max(0, 1 - enemy.deathT / 2);
+  } else {
+    enemyBlobShadow.visible = false;
+  }
+}
+
 function updateThirdPersonCamera() {
   if (!thirdPerson) return;
   const target = scratchV1.set(
@@ -4426,6 +4675,8 @@ function animate() {
   }
 
   updateParticles(dt);
+  updateDust(dt);
+  updateBlobShadows();
   updateShockwaves(dt);
   updateArenaEvent(dt);
   dustMotes.rotation.y += dt * 0.008;
@@ -4553,6 +4804,25 @@ window.__game = {
     triangles: renderer.info.render.triangles
   }),
   setRenderScale: (s) => { applyRenderScale(s); return renderScale; },
+  realism: () => {
+    let bumpMapped = 0;
+    scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (mats.some((m) => m && m.bumpMap)) bumpMapped++;
+    });
+    return {
+      environment: !!scene.environment,
+      shadowType: renderer.shadowMap.type,
+      exposure: renderer.toneMappingExposure,
+      playerShadow: playerBlobShadow.visible,
+      enemyShadow: enemyBlobShadow.visible,
+      dustPool: DUST_MAX,
+      dustActive: dustParticles.filter((d) => d.life > 0).length,
+      bumpMapped,
+      fog: !!scene.fog
+    };
+  },
 };
 // ---- Arena Forge UI ----
 const FORGE_KEY = 'storm-of-blade-maps-v1';
@@ -5499,6 +5769,28 @@ if (qs.has('testperf')) {
   const after = window.__game.perf();
   document.body.dataset.perfTest = `scaleDown=${scaleDown} scaleUp=${scaleUp} sparks=${sparks1}->${sparks2} pool=${after.sparkPool} torchOn=${low.torchLightsOn}/${low.torchLights} low=${low.lowQuality} restored=${after.lowQuality} calls=${before.drawCalls}`;
   setMessage(`PERF TEST ${document.body.dataset.perfTest}`, 20);
+}
+
+// Debug: verify the realism pass (reflections, contact shadows, dust, bump maps).
+if (qs.has('testrealism')) {
+  loadBoss(0, false);
+  overlay.style.display = 'none';
+  if (storyOverlay) storyOverlay.style.display = 'none';
+  playerBody.position.set(0, 0.45, 5);
+  playerBody.velocity.set(0, 0, 0);
+  enemyBody.position.set(0, 0.9, -0.5);
+  enemyBody.velocity.set(0, 0, 0);
+  yaw = 0;
+  pitch = 0;
+  controls.getObject().rotation.set(0, 0, 0, 'YXZ');
+  controls.getObject().position.set(0, 1.7, 5);
+  beginFallback('Realism test');
+  spawnDust(new THREE.Vector3(0, 0.05, 4.5), 10, 1.2);
+  spawnSparks(new THREE.Vector3(0, 1.2, -0.5), 0xffcc66, 10, 2.5);
+  updateBlobShadows();
+  const r = window.__game.realism();
+  document.body.dataset.realismTest = `env=${r.environment} shadow=${r.shadowType} blobs=${r.playerShadow}/${r.enemyShadow} dust=${r.dustActive}/${r.dustPool} bump=${r.bumpMapped} exposure=${r.exposure}`;
+  setMessage(`REALISM TEST ${document.body.dataset.realismTest}`, 20);
 }
 
 // Debug: exercise event spawning, pickups and modifiers.
